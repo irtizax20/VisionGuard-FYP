@@ -1,0 +1,388 @@
+rules_version = '2';
+
+/**
+ * Firebase Firestore Security Rules for Vision Guard
+ * Protects user data and prevents unauthorized access
+ */
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ========================================
+    // HELPER FUNCTIONS
+    // ========================================
+    
+    // Check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Check if user owns the resource
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Check if user is a parent of the child
+    function isParent(childUserId) {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/parent_child_links/$(request.auth.uid + '_' + childUserId));
+    }
+    
+    // Check if user can access resource (owner or parent)
+    function canAccess(userId) {
+      return isOwner(userId) || isParent(userId);
+    }
+    
+    // Validate email format
+    function isValidEmail(email) {
+      return email.matches('^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$');
+    }
+    
+    // Check if user category is valid
+    function isValidCategory(category) {
+      return category in ['child', 'adult', 'old'];
+    }
+    
+    // Check if data size is within limit (prevent DoS)
+    function isValidSize() {
+      return request.resource.size() < 1048576; // 1MB limit
+    }
+    
+    // ========================================
+    // USER COLLECTION
+    // ========================================
+    
+    match /user/{userId} {
+      // Allow read if authenticated and accessing own document or is parent
+      allow read: if isAuthenticated() && 
+                   (request.auth.uid == userId || isParent(userId));
+      
+      // Allow querying for parent email validation during child signup (unauthenticated)
+      // Also allows authenticated duplicate face detection queries
+      // Allow all list operations for email-based queries (needed for parent validation)
+      allow list: if true;
+      
+      // Allow create only for authenticated users creating their own document
+      allow create: if isAuthenticated() &&
+                     request.auth.uid == userId &&
+                     isValidSize() &&
+                     request.resource.data.uid == request.auth.uid &&
+                     request.resource.data.keys().hasAll(['uid', 'name', 'email', 'category', 'createdAt']) &&
+                     isValidEmail(request.resource.data.email) &&
+                     isValidCategory(request.resource.data.category);
+      
+      // Allow update only for owner
+      // Also allow authenticated users to update parent's childrenCount/children array (for child signup)
+      allow update: if (isOwner(userId) &&
+                       isValidSize() &&
+                       request.resource.data.uid == resource.data.uid &&
+                       request.resource.data.email == resource.data.email) ||
+                      (isAuthenticated() &&
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['childrenCount', 'children']) &&
+                       resource.data.category in ['adult', 'old']);
+      
+      // Allow delete only for owner
+      allow delete: if isOwner(userId);
+    }
+    
+    // ========================================
+    // EYE IMAGES COLLECTION
+    // ========================================
+    
+    match /eye_images/{imageId} {
+      // Allow read if user owns the image or is parent
+      allow read: if isAuthenticated() && 
+                   canAccess(resource.data.userId);
+      
+      // Allow create for authenticated users
+      allow create: if isAuthenticated() && 
+                     request.resource.data.userId == request.auth.uid &&
+                     isValidSize();
+      
+      // Allow update for owner only
+      allow update: if isAuthenticated() && 
+                     resource.data.userId == request.auth.uid &&
+                     isValidSize();
+      
+      // Allow delete for owner only
+      allow delete: if isAuthenticated() && 
+                     resource.data.userId == request.auth.uid;
+    }
+    
+    // ========================================
+    // EYE ANALYSIS COLLECTION
+    // ========================================
+    
+    match /eye_analysis/{analysisId} {
+      // Allow read if user owns the analysis or is parent
+      allow read: if isAuthenticated() && 
+                   canAccess(resource.data.userId);
+      
+      // Allow create for authenticated users
+      allow create: if isAuthenticated() && 
+                     request.resource.data.userId == request.auth.uid &&
+                     isValidSize();
+      
+      // Allow update for owner only
+      allow update: if isAuthenticated() && 
+                     resource.data.userId == request.auth.uid &&
+                     isValidSize();
+      
+      // Allow delete for owner only
+      allow delete: if isAuthenticated() && 
+                     resource.data.userId == request.auth.uid;
+    }
+    
+    // ========================================
+    // FACE VERIFICATIONS COLLECTION
+    // ========================================
+    
+    match /face_verifications/{verificationId} {
+      // Allow read for owner only
+      allow read: if isAuthenticated() && 
+                   resource.data.userId == request.auth.uid;
+      
+      // Allow create for authenticated users
+      allow create: if isAuthenticated() && 
+                     request.resource.data.userId == request.auth.uid &&
+                     isValidSize();
+      
+      // No updates or deletes (immutable records)
+      allow update, delete: if false;
+    }
+    
+    // ========================================
+    // REDNESS LOGS (Eye fatigue data)
+    // ========================================
+    
+    match /redness_logs/{logId} {
+      // Allow read if user can access the data
+      allow read: if isAuthenticated() && 
+                   canAccess(resource.data.userId);
+      
+      // Allow create only for authenticated users
+      allow create: if isAuthenticated() && 
+                     request.resource.data.userId == request.auth.uid &&
+                     isValidSize() &&
+                     // Validate required fields
+                     request.resource.data.keys().hasAll(['userId', 'timestamp', 'rednessScore']) &&
+                     // Validate data types
+                     request.resource.data.rednessScore is number &&
+                     request.resource.data.rednessScore >= 0 &&
+                     request.resource.data.rednessScore <= 100 &&
+                     request.resource.data.timestamp is timestamp;
+      
+      // Logs are immutable - no updates or deletes
+      allow update, delete: if false;
+    }
+    
+    // ========================================
+    // DAILY SUMMARIES
+    // ========================================
+    
+    match /daily_summaries/{summaryId} {
+      // Allow read if user can access the data
+      allow read: if isAuthenticated() && 
+                   canAccess(resource.data.userId);
+      
+      // Allow create/update for owner only
+      allow create, update: if isAuthenticated() && 
+                             request.resource.data.userId == request.auth.uid &&
+                             isValidSize();
+      
+      // Allow delete for owner only
+      allow delete: if isAuthenticated() && 
+                     resource.data.userId == request.auth.uid;
+    }
+    
+    // ========================================
+    // USER BASELINES
+    // ========================================
+    
+    match /user_baselines/{userId} {
+      // Allow read for owner or parent
+      allow read: if canAccess(userId);
+      
+      // Allow create/update for owner only
+      allow create, update: if isOwner(userId) && isValidSize();
+      
+      // Allow delete for owner only
+      allow delete: if isOwner(userId);
+    }
+    
+    // ========================================
+    // SCREEN TIME DATA
+    // ========================================
+    
+    // Main screen_time collection (weekly structure)
+    match /screen_time/{userId} {
+      // Allow read if user can access
+      allow read: if canAccess(userId);
+      
+      // Allow write only for owner
+      allow write: if isOwner(userId) && isValidSize();
+    }
+    
+    match /screenTime/{userId}/dailyData/{date} {
+      // Allow read if user can access
+      allow read: if canAccess(userId);
+      
+      // Allow write only for owner
+      allow write: if isOwner(userId) && isValidSize();
+    }
+    
+    // Blink tracking stats subcollection
+    match /screenTime/{userId}/stats/{statType} {
+      // Allow read if user can access
+      allow read: if canAccess(userId);
+      
+      // Allow write only for owner
+      allow write: if isOwner(userId) && isValidSize();
+    }
+    
+    // ========================================
+    // BLINKS COLLECTION
+    // Stores blink tracking data separately
+    // - Total blinks
+    // - Number of blinks measurements
+    // - Screen distance data
+    // - Calculation counts
+    // ========================================
+    
+    match /blinks/{userId} {
+      // Allow read/write only for owner (no size limit for blink data)
+      allow read, write: if isOwner(userId);
+    }
+    
+    // ========================================
+    // BLINK DATA COLLECTION (Weekly rotation system)
+    // Stores 4 weeks of blink data with auto-rotation
+    // - week4: current week (daily data)
+    // - week3/2/1: previous weeks (averages)
+    // ========================================
+    
+    match /blink_data/{userId} {
+      // Allow read/write only for owner (no size limit for rotation operations)
+      allow read, write: if isOwner(userId);
+    }
+    
+    // ========================================
+    // PARENT-CHILD LINKS
+    // ========================================
+    
+    match /parent_child_links/{linkId} {
+      // Allow read if user is parent or child in the link
+      allow read: if isAuthenticated() && 
+                   (resource.data.parentId == request.auth.uid || 
+                    resource.data.childId == request.auth.uid);
+      
+      // Allow create by child (during signup) or parent
+      allow create: if isAuthenticated() && 
+                     (request.resource.data.childId == request.auth.uid ||
+                      request.resource.data.parentId == request.auth.uid) &&
+                     isValidSize();
+      
+      // Allow delete only for parent
+      allow delete: if isAuthenticated() && 
+                     resource.data.parentId == request.auth.uid;
+      
+      // No updates allowed
+      allow update: if false;
+    }
+    
+    // ========================================
+    // NOTIFICATIONS
+    // ========================================
+    
+    match /notifications/{notificationId} {
+      // Allow read only for the recipient
+      allow read: if isAuthenticated() && 
+                   resource.data.userId == request.auth.uid;
+      
+      // Allow create for system (no user ID check)
+      allow create: if isAuthenticated() && isValidSize();
+      
+      // Allow update/delete only for owner
+      allow update, delete: if isAuthenticated() && 
+                             resource.data.userId == request.auth.uid;
+    }
+    
+    // ========================================
+    // REPORTS
+    // ========================================
+    
+    match /reports/{reportId} {
+      // Allow read if user can access
+      allow read: if isAuthenticated() && 
+                   canAccess(resource.data.userId);
+      
+      // Allow create for owner
+      allow create: if isAuthenticated() && 
+                     request.resource.data.userId == request.auth.uid &&
+                     isValidSize();
+      
+      // Allow update/delete for owner
+      allow update, delete: if isAuthenticated() && 
+                             resource.data.userId == request.auth.uid;
+    }
+    
+    // ========================================
+    // BREAK REMINDERS
+    // ========================================
+    
+    match /break_reminders/{reminderId} {
+      // Allow read/write only for owner
+      allow read, write: if isAuthenticated() && 
+                          (
+                            (request.resource != null && request.resource.data.userId == request.auth.uid) ||
+                            (resource != null && resource.data.userId == request.auth.uid)
+                          ) &&
+                          isValidSize();
+    }
+    
+    // ========================================
+    // SETTINGS
+    // ========================================
+    
+    match /settings/{userId} {
+      // Allow read/write only for owner
+      allow read, write: if isOwner(userId) && isValidSize();
+    }
+    
+    // ========================================
+    // PARENT VERIFICATIONS
+    // For child signup approval workflow
+    // ========================================
+    
+    match /parent_verifications/{token} {
+      // Allow read for anyone (needed for initial document check)
+      allow read: if true;
+      
+      // Allow create for anyone (child initiating signup)
+      allow create: if isValidSize() &&
+                     request.resource.data.status == 'pending' &&
+                     request.resource.data.keys().hasAll(['parentEmail', 'child', 'createdAt', 'expiresAt']);
+      
+      // Allow update only if user is the parent and only changing status
+      allow update: if isAuthenticated() && 
+                     request.auth.token.email == resource.data.parentEmail &&
+                     request.resource.data.status in ['verified', 'approved', 'rejected', 'expired', 'completed'] &&
+                     request.resource.data.parentEmail == resource.data.parentEmail &&
+                     request.resource.data.child == resource.data.child &&
+                     isValidSize();
+      
+      // No delete allowed
+      allow delete: if false;
+    }
+    
+    // ========================================
+    // DENY ALL BY DEFAULT
+    // ========================================
+    
+    // Any collection not explicitly allowed is denied
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+

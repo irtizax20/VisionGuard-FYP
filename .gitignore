@@ -1,0 +1,74 @@
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env
+.env*
+.env*.local
+
+# typescript
+*.tsbuildinfo
+
+# Microsoft Office documents
+*.docx
+~$*.docx
+
+app-example
+
+# ML artifacts
+models/
+checkpoints/
+artifacts/
+ml/models/
+ml/checkpoints/
+ml/artifacts/
+ml/data/
+data/
+**/outputs/
+**/runs/
+*.pt
+*.onnx
+*.tflite
+*.ckpt
+
+# Python virtual environments
+.venv*/
+venv*/
+
+# Temp/extract folders
+_extract*/
+*_extract*/
+
+# Documentation files
+CODE_ANALYSIS_REPORT*.md
+SCREEN_TRACKING_USAGE.md
+docs/

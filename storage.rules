@@ -1,0 +1,148 @@
+rules_version = '2';
+
+/**
+ * Firebase Storage Security Rules for Vision Guard
+ * Protects user files and prevents unauthorized access
+ */
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // ========================================
+    // HELPER FUNCTIONS
+    // ========================================
+    
+    // Check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Check if user owns the resource
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Check file size (max 10MB for images, 50MB for videos)
+    function isValidImageSize() {
+      return request.resource.size <= 10 * 1024 * 1024; // 10MB
+    }
+    
+    function isValidVideoSize() {
+      return request.resource.size <= 50 * 1024 * 1024; // 50MB
+    }
+    
+    // Check if file is an image
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+    
+    // Check if file is a video
+    function isVideo() {
+      return request.resource.contentType.matches('video/.*');
+    }
+    
+    // ========================================
+    // USER PROFILE IMAGES
+    // ========================================
+    
+    match /users/{userId}/profile/{fileName} {
+      // Allow read if authenticated (profile pictures can be viewed by others)
+      allow read: if isAuthenticated();
+      
+      // Allow write only for owner
+      allow write: if isOwner(userId) && 
+                    isImage() && 
+                    isValidImageSize();
+      
+      // Allow delete only for owner
+      allow delete: if isOwner(userId);
+    }
+    
+    // ========================================
+    // USER FACE DATA (highly sensitive)
+    // ========================================
+    
+    match /users/{userId}/face/{fileName} {
+      // Allow read/write only for owner
+      allow read, write: if isOwner(userId) && 
+                          isImage() && 
+                          isValidImageSize();
+      
+      // Allow delete only for owner
+      allow delete: if isOwner(userId);
+    }
+    
+    // ========================================
+    // REPORT IMAGES
+    // ========================================
+    
+    match /reports/{userId}/{reportId}/{fileName} {
+      // Allow read if user owns the report
+      allow read: if isOwner(userId);
+      
+      // Allow write only for owner
+      allow write: if isOwner(userId) && 
+                    isImage() && 
+                    isValidImageSize();
+      
+      // Allow delete only for owner
+      allow delete: if isOwner(userId);
+    }
+    
+    // ========================================
+    // SCREEN RECORDINGS (for screen time analysis)
+    // ========================================
+    
+    match /screenTime/{userId}/recordings/{fileName} {
+      // Allow read only for owner
+      allow read: if isOwner(userId);
+      
+      // Allow write only for owner
+      allow write: if isOwner(userId) && 
+                    isVideo() && 
+                    isValidVideoSize();
+      
+      // Allow delete only for owner
+      allow delete: if isOwner(userId);
+    }
+    
+    // ========================================
+    // EXPORT DATA (backup files)
+    // ========================================
+    
+    match /exports/{userId}/{fileName} {
+      // Allow read only for owner
+      allow read: if isOwner(userId);
+      
+      // Allow write only for owner (with reasonable size limit)
+      allow write: if isOwner(userId) && 
+                    request.resource.size <= 100 * 1024 * 1024; // 100MB
+      
+      // Allow delete only for owner
+      allow delete: if isOwner(userId);
+    }
+    
+    // ========================================
+    // TEMPORARY FILES (auto-delete after 24 hours)
+    // ========================================
+    
+    match /temp/{userId}/{fileName} {
+      // Allow read/write only for owner
+      allow read, write: if isOwner(userId) && 
+                          request.resource.size <= 10 * 1024 * 1024; // 10MB
+      
+      // Allow delete only for owner
+      allow delete: if isOwner(userId);
+    }
+    
+    // ========================================
+    // DENY ALL BY DEFAULT
+    // ========================================
+    
+    // Any path not explicitly allowed is denied
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
+

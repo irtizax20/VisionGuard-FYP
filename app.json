@@ -1,0 +1,68 @@
+{
+  "expo": {
+    "name": "Vision Guard",
+    "slug": "visionguard",
+    "version": "1.0.0",
+    "scheme": "visionguard",
+    "orientation": "portrait",
+    "icon": "./assets/logo.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#2B383D"
+    },
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.irtiza001.visionguard"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/logo.png",
+        "backgroundColor": "#2B383D"
+      },
+      "package": "com.irtiza001.visionguard",
+      "permissions": [
+        "CAMERA",
+        "PACKAGE_USAGE_STATS",
+        "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
+        "SYSTEM_ALERT_WINDOW",
+        "FOREGROUND_SERVICE",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "experiments": {
+      "typedRoutes": true
+    },
+    "jsEngine": "hermes",
+    "plugins": [
+      "expo-router"
+    ],
+    "updates": {
+      "url": "https://u.expo.dev/19653d4c-6a48-443c-a0a7-287a375639d6"
+    },
+    "extra": {
+      "PARENT_APPROVAL_REQUEST_URL": "https://us-central1-blinkfit-ca40a.cloudfunctions.net/requestParentApproval",
+      "PARENT_APPROVAL_VERIFY_URL": "https://us-central1-blinkfit-ca40a.cloudfunctions.net/verifyParentApproval",
+      "router": {},
+      "firebaseApiKey": "AIzaSyDM0pbu8ye7xKADzRbK8EMdBdmFGvej2u0",
+      "firebaseAuthDomain": "vision-guard-f0daa.firebaseapp.com",
+      "firebaseProjectId": "vision-guard-f0daa",
+      "firebaseStorageBucket": "vision-guard-f0daa.firebasestorage.app",
+      "firebaseMessagingSenderId": "1037048435719",
+      "firebaseAppId": "1:1037048435719:web:1b171dbfbaa0d75addc6a2",
+      "firebaseMeasurementId": "G-5E723L1J59",
+      "eas": {
+        "projectId": "19653d4c-6a48-443c-a0a7-287a375639d6"
+      }
+    }
+  }
+}

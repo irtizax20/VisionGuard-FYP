@@ -1,0 +1,23 @@
+{
+  "name": "vision-guard-functions",
+  "version": "1.0.0",
+  "engines": {
+    "node": ">=18"
+  },
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "tsc -p .",
+    "watch": "tsc -w -p ."
+  },
+  "dependencies": {
+    "@sendgrid/mail": "^8.1.0",
+    "blinkfit": "file:..",
+    "firebase-admin": "^12.5.0",
+    "firebase-functions": "^5.0.1",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/uuid": "^10.0.0",
+    "typescript": "^5.4.0"
+  }
+}
