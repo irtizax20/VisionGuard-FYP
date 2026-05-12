@@ -72,3 +72,13 @@ _extract*/
 CODE_ANALYSIS_REPORT*.md
 SCREEN_TRACKING_USAGE.md
 docs/
+
+# Android build ignores
+android/.gradle/
+android/app/build/
+android/build/
+android/.idea/
+android/.cxx/
+android/app/.cxx/
+ios/build/
+ios/Pods/
