@@ -18,6 +18,11 @@ module.exports = ({ config = {} }) => ({
       firebaseMessagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
       firebaseAppId: process.env.FIREBASE_APP_ID,
       firebaseMeasurementId: process.env.FIREBASE_MEASUREMENT_ID,
-    }
+    },
+    plugins: [
+      ...(appJson.expo?.plugins || []),
+      ...(config.plugins || []),
+      "@react-native-community/datetimepicker"
+    ]
   }
 });
