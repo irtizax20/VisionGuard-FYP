@@ -42,6 +42,7 @@ export default function SignUpScreen() {
   const [isListening, setIsListening] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [parentOtpInput, setParentOtpInput] = useState('');
+  const [generatedOtpCode, setGeneratedOtpCode] = useState<string | null>(null); // stored for single-phone demo
   
   const router = useRouter();
 
@@ -220,11 +221,12 @@ export default function SignUpScreen() {
       }
 
       setVerificationToken(approvalRes.token!);
+      setGeneratedOtpCode(approvalRes.message || null); // store OTP for single-device access
       setVerificationStatus('pending');
 
       Alert.alert(
         '📱 Ask Your Parent',
-        `A 6-digit verification code has been prepared for ${parentEmail}.\n\nAsk your parent to:\n1. Open VisionGuard app\n2. Go to Parent Dashboard\n3. Find the approval code and tell it to you\n\nThen enter the code below.`,
+        `A 6-digit verification code has been prepared for ${parentEmail}.\n\nAsk your parent to:\n1. Open VisionGuard app → Parent Dashboard\n2. See the yellow code card and tell you the code\n\n💡 Only one phone? Tap "Show Code" below to see it directly.`,
         [{ text: 'OK' }]
       );
 
@@ -545,6 +547,26 @@ export default function SignUpScreen() {
                       >
                         <Text style={styles.verificationButtonText}>Verify Code</Text>
                       </TouchableOpacity>
+
+                      {/* Single-phone helper: show the OTP directly */}
+                      {generatedOtpCode && (
+                        <TouchableOpacity
+                          style={[styles.verificationButton, { backgroundColor: '#6C757D', marginTop: 8 }]}
+                          onPress={() => {
+                            Alert.alert(
+                              '🔑 Parent Approval Code',
+                              `The code is:\n\n${generatedOtpCode}\n\nEnter this in the field above to complete verification.\n\n(In a real 2-device setup, only the parent would see this in their dashboard.)`,
+                              [
+                                { text: 'Enter Code', onPress: () => setParentOtpInput(generatedOtpCode) },
+                                { text: 'Close' },
+                              ]
+                            );
+                          }}
+                        >
+                          <Ionicons name="eye-outline" size={16} color="#FAFAFA" style={{ marginRight: 6 }} />
+                          <Text style={styles.verificationButtonText}>Show Code (Single Device)</Text>
+                        </TouchableOpacity>
+                      )}
                     </View>
                   )}
                 </>
