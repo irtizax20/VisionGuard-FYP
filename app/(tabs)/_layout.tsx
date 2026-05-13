@@ -3,9 +3,35 @@ import { Tabs } from 'expo-router';
 import { View } from 'react-native';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import { useTheme } from '../../hooks/useTheme';
+import { useState, useEffect } from 'react';
+import { auth, db } from '../../firebase/firebaseConfig';
+import { doc, getDoc } from 'firebase/firestore';
 
 export default function TabLayout() {
   const { colors } = useTheme();
+  const [isParent, setIsParent] = useState(false);
+
+  useEffect(() => {
+    const checkUserRole = async () => {
+      const user = auth.currentUser;
+      if (user) {
+        try {
+          const userDoc = await getDoc(doc(db, 'user', user.uid));
+          if (userDoc.exists()) {
+            const data = userDoc.data();
+            // Show parent dashboard for adult categories
+            if (data.category && (data.category === '16-40' || data.category === '40+' || data.category === 'adult' || data.category === 'old')) {
+              setIsParent(true);
+            }
+          }
+        } catch (e) {
+          console.log('Error fetching role:', e);
+        }
+      }
+    };
+    checkUserRole();
+  }, []);
+
 // Configure tab navigator with themed styles and icons
   return (
     <ProtectedRoute>
@@ -56,6 +82,8 @@ export default function TabLayout() {
               iconName = focused ? 'document-text' : 'document-text-outline';
             } else if (route.name === 'Setting') {
               iconName = focused ? 'settings' : 'settings-outline';
+            } else if (route.name === 'ParentDashboard') {
+              iconName = focused ? 'shield' : 'shield-outline';
             }
 
             return (
@@ -106,6 +134,14 @@ export default function TabLayout() {
           options={{
             title: 'Settings',
             headerTitle: 'Settings',
+          }}
+        />
+        <Tabs.Screen
+          name="ParentDashboard"
+          options={{
+            title: 'Parent',
+            headerTitle: 'Parent Dashboard',
+            href: isParent ? '/ParentDashboard' : null,
           }}
         />
       </Tabs>

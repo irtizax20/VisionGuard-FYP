@@ -223,16 +223,31 @@ export default function BlinkTestScreen() {
     }
   };
 
-  const handleStopTest = () => {
-    // Just cancel detection visually - auto-stop will handle the rest
+  const handleStopTest = async () => {
+    try {
+      await BlinkDetectionService.stopDetection();
+    } catch (e) {
+      console.log('Error stopping detection early:', e);
+    }
+    
     setIsDetecting(false);
     setShowCamera(false);
     Alert.alert(
       '⚠️ Detection Cancelled',
-      'Detection will auto-complete at 30 seconds. Results will show automatically.',
+      'Detection was stopped early.',
       [{ text: 'OK' }]
     );
   };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      // If user navigates away while detecting, stop it
+      if (isDetecting) {
+        BlinkDetectionService.stopDetection().catch(e => console.log('Cleanup error:', e));
+      }
+    };
+  }, [isDetecting]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>

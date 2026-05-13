@@ -43,6 +43,27 @@ class BlinkDetectionService {
     }
   }
 
+  /**
+   * Stop blink detection session early
+   */
+  async stopDetection(): Promise<BlinkDetectionResult | null> {
+    if (!BlinkDetectionModule) {
+      throw new Error('BlinkDetectionModule not available');
+    }
+    
+    try {
+      const results = await BlinkDetectionModule.stopDetection();
+      console.log('Blink detection stopped early');
+      return results as BlinkDetectionResult;
+    } catch (error: any) {
+      if (error?.message === 'No detection in progress') {
+         return null;
+      }
+      console.error('Failed to stop blink detection:', error);
+      throw error;
+    }
+  }
+
 
   /**
    * Get current detection status

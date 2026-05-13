@@ -13,6 +13,9 @@ import { ThemeProvider } from '../hooks/ThemeContext';
 import { useTheme } from '../hooks/useTheme';
 import ServiceInitializer from '../services/ServiceInitializer';
 import { initializeAndroidPermissions } from '../utils/AndroidPermissions';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebase/firebaseConfig';
+import { router } from 'expo-router';
 
 // Global error handlers to prevent app crashes
 if (typeof (global as any).ErrorUtils !== 'undefined') {
@@ -75,6 +78,21 @@ function ThemedApp() {
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       try {
         if (user) {
+          // Listen for lock screen changes
+          const userDocRef = doc(db, 'user', user.uid);
+          const unsubscribeLock = onSnapshot(userDocRef, (docSnap) => {
+            if (docSnap.exists()) {
+              const userData = docSnap.data();
+              if (userData.isLocked) {
+                console.log('🔒 Device locked by parent! Redirecting to lock screen...');
+                router.replace('/lock-screen');
+              }
+            }
+          });
+          
+          // Store unsubscribe for cleanup (if needed later)
+          (global as any).unsubscribeLockListener = unsubscribeLock;
+
           // Only start heavy/background services once user is logged in AND face verified
           try {
             const faceVerified = await AsyncStorage.getItem('faceVerificationCompleted');
@@ -91,6 +109,10 @@ function ThemedApp() {
         } else {
           // User logged out – reset service initializer
           try {
+            if ((global as any).unsubscribeLockListener) {
+              (global as any).unsubscribeLockListener();
+              (global as any).unsubscribeLockListener = null;
+            }
             serviceInitializer.reset();
           } catch (error) {
             console.error('❌ Error resetting services:', error);

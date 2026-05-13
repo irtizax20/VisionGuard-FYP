@@ -49,7 +49,7 @@ export async function requestParentApproval(payload: ChildSignupPayload): Promis
     });
 
     // 2) Send Email Link to parent (no Functions). Parent opens hosted page which approves in Firestore
-    const approveUrl = `https://blinkfit-ca40a.firebaseapp.com/parent-approve.html?token=${encodeURIComponent(token)}&email=${encodeURIComponent(parentEmail)}`;
+    const approveUrl = `https://vision-guard-f0daa.firebaseapp.com/parent-approve.html?token=${encodeURIComponent(token)}&email=${encodeURIComponent(parentEmail)}`;
     const actionCodeSettings = {
       url: approveUrl,
       handleCodeInApp: true,

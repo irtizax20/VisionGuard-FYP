@@ -17,7 +17,7 @@ function ExerciseCard({ exercise, isActive, onToggle, theme }: { exercise: any, 
   const { colors, fonts, spacing, borderRadius } = theme;
   const [timeLeft, setTimeLeft] = useState(exercise.duration);
   const [isRunning, setIsRunning] = useState(false);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (!isActive) {

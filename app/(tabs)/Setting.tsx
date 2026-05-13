@@ -2,7 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useNavigation } from 'expo-router';
 import { EmailAuthProvider, reauthenticateWithCredential, signOut } from 'firebase/auth';
 import React, { useEffect, useState } from 'react';
-import { Alert, BackHandler, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import * as IntentLauncher from 'expo-intent-launcher';
+import { Alert, BackHandler, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View, Platform, Linking } from 'react-native';
 import LogoutButton from '../../components/ui/LogoutButton';
 import { auth } from '../../firebase/firebaseConfig';
 import { useThemeContext } from '../../hooks/ThemeContext';
@@ -615,7 +616,25 @@ export default function SettingsScreen() {
                 await VisionGuardOverlayService.startOverlayService();
                 Alert.alert("Success", "Background monitoring started");
              } catch (e: any) {
-                Alert.alert("Error", e.message || "Failed to start service");
+                if (e.message && e.message.includes("SYSTEM_ALERT_WINDOW")) {
+                  Alert.alert(
+                    "Permission Required",
+                    "Vision Guard needs 'Display over other apps' permission to run in the background. Please enable it in Settings.",
+                    [
+                      { text: "Cancel", style: "cancel" },
+                      { 
+                        text: "Open Settings", 
+                        onPress: () => {
+                          if (Platform.OS === 'android') {
+                            IntentLauncher.startActivityAsync('android.settings.action.MANAGE_OVERLAY_PERMISSION');
+                          }
+                        } 
+                      }
+                    ]
+                  );
+                } else {
+                  Alert.alert("Error", e.message || "Failed to start service");
+                }
              }
           }}
         >
