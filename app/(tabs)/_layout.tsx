@@ -141,7 +141,7 @@ export default function TabLayout() {
           options={{
             title: 'Parent',
             headerTitle: 'Parent Dashboard',
-            href: isParent ? '/ParentDashboard' : null,
+            href: isParent ? ('/ParentDashboard' as any) : null,
           }}
         />
       </Tabs>

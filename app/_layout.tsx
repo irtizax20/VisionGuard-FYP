@@ -85,7 +85,7 @@ function ThemedApp() {
               const userData = docSnap.data();
               if (userData.isLocked) {
                 console.log('🔒 Device locked by parent! Redirecting to lock screen...');
-                router.replace('/lock-screen');
+                router.replace('/lock-screen' as any);
               }
             }
           });

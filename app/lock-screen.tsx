@@ -30,12 +30,12 @@ export default function LockScreen() {
           if (!data.isLocked) {
             console.log('🔓 Device unlocked by parent!');
             setIsLocked(false);
-            router.replace('/(tabs)/Main');
+            router.replace('/(tabs)/Main' as any);
           }
         }
       });
     } else {
-      router.replace('/(auth)/LoginScreen');
+      router.replace('/(auth)/LoginScreen' as any);
     }
 
     return () => {
