@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Switch, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Switch, ActivityIndicator, Alert, Clipboard } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../hooks/useTheme';
 import { auth, db } from '../../firebase/firebaseConfig';
 import { collection, query, where, getDocs, doc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { getPendingOTPForParent } from '../../utils/ParentApproval';
 
 interface ChildData {
   uid: string;
@@ -13,10 +14,17 @@ interface ChildData {
   isLocked?: boolean;
 }
 
+interface PendingApproval {
+  token: string;
+  otp: string;
+  childName: string;
+}
+
 export default function ParentDashboard() {
   const { colors } = useTheme();
   const [children, setChildren] = useState<ChildData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
 
   useEffect(() => {
     const fetchChildren = async () => {
@@ -24,6 +32,10 @@ export default function ParentDashboard() {
       if (!user || !user.email) return;
 
       try {
+        // Fetch pending OTP approvals for this parent
+        const pending = await getPendingOTPForParent(user.email);
+        setPendingApproval(pending);
+
         const usersRef = collection(db, 'user');
         const q = query(
           usersRef,
@@ -124,6 +136,30 @@ export default function ParentDashboard() {
           Manage your children's devices
         </Text>
       </View>
+
+      {/* Pending OTP approval card */}
+      {pendingApproval && (
+        <View style={[styles.otpCard, { backgroundColor: '#FFF3CD', borderColor: '#FFC107' }]}>
+          <Ionicons name="alert-circle" size={24} color="#856404" />
+          <View style={{ flex: 1, marginLeft: 10 }}>
+            <Text style={[styles.otpTitle, { color: '#856404' }]}>
+              📋 Approval Pending: {pendingApproval.childName}
+            </Text>
+            <Text style={[styles.otpSub, { color: '#856404' }]}>
+              Give this code to your child to complete registration:
+            </Text>
+            <TouchableOpacity
+              onPress={() => {
+                Clipboard.setString(pendingApproval.otp);
+                Alert.alert('Copied!', `Code ${pendingApproval.otp} copied to clipboard.`);
+              }}
+            >
+              <Text style={styles.otpCode}>{pendingApproval.otp}</Text>
+            </TouchableOpacity>
+            <Text style={[styles.otpHint, { color: '#856404' }]}>Tap the code to copy it</Text>
+          </View>
+        </View>
+      )}
 
       {loading ? (
         <View style={styles.centerContent}>
@@ -244,5 +280,40 @@ const styles = StyleSheet.create({
   controlSub: {
     fontSize: 12,
     marginTop: 2,
+  },
+  otpCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    margin: 16,
+    marginTop: 0,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1.5,
+  },
+  otpTitle: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  otpSub: {
+    fontSize: 13,
+    marginBottom: 10,
+  },
+  otpCode: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    letterSpacing: 8,
+    color: '#155724',
+    backgroundColor: '#D4EDDA',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    textAlign: 'center',
+    overflow: 'hidden',
+  },
+  otpHint: {
+    fontSize: 11,
+    marginTop: 6,
+    fontStyle: 'italic',
   },
 });

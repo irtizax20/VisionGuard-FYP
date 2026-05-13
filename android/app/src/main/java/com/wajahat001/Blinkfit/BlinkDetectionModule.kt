@@ -435,7 +435,18 @@ class BlinkDetectionModule(private val reactContext: ReactApplicationContext) :
                         
                         // Process blink detection
                         try {
+                            val prevBlinks = detectionHelper.getBlinkCount()
                             detectionHelper.processBlink(face)
+                            val newBlinks = detectionHelper.getBlinkCount()
+                            // Emit event on every new blink for real-time UI updates
+                            if (newBlinks > prevBlinks) {
+                                val blinkData = Arguments.createMap().apply {
+                                    putInt("blinkCount", newBlinks)
+                                }
+                                reactContext
+                                    .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                                    .emit("onBlinkDetected", blinkData)
+                            }
                         } catch (e: Exception) {
                             Log.e(TAG, "Blink processing error", e)
                         }

@@ -4,13 +4,15 @@ import BlinkDetectionService, { BlinkDetectionResult } from '@/services/BlinkDet
 import BlinkTrackingService from '@/services/BlinkTrackingService';
 import EyeImageCaptureService, { EyeImageData } from '@/services/EyeImageCaptureService';
 import { Ionicons } from '@expo/vector-icons';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { useCameraPermissions } from 'expo-camera';
 import { router } from 'expo-router';
 import * as Speech from 'expo-speech';
 import React, { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    Animated,
+    Easing,
     Image,
     Platform,
     StyleSheet,
@@ -27,25 +29,47 @@ export default function BlinkTestScreen() {
   const theme = colorScheme === 'dark' ? Colors.darkHighContrast : Colors.lightHighContrast;
   
   const [permission, requestPermission] = useCameraPermissions();
-  const [cameraActive, setCameraActive] = useState(true); // Android 13+ camera remount
   const [isDetecting, setIsDetecting] = useState(false);
   const [currentBlinkCount, setCurrentBlinkCount] = useState(0);
   const [currentDistanceMeasurements, setCurrentDistanceMeasurements] = useState(0);
   const [result, setResult] = useState<BlinkDetectionResult | null>(null);
   const [countdown, setCountdown] = useState(0);
-  const [showCamera, setShowCamera] = useState(false);
   const [eyeCaptureEnabled, setEyeCaptureEnabled] = useState(true);
   const [capturedEyeImages, setCapturedEyeImages] = useState<EyeImageData | null>(null);
   const [tooCloseWarning, setTooCloseWarning] = useState(false);
-  const cameraRef = useRef<any>(null);
   const lastSpokeRef = useRef<number>(0);
 
+  // Animation for the detecting indicator
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const blinkFlashAnim = useRef(new Animated.Value(1)).current;
+
+  const startPulse = () => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.15, duration: 700, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 700, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
+      ])
+    ).start();
+  };
+
+  const stopPulse = () => {
+    pulseAnim.stopAnimation();
+    pulseAnim.setValue(1);
+  };
+
+  const flashBlinkIndicator = () => {
+    Animated.sequence([
+      Animated.timing(blinkFlashAnim, { toValue: 0.3, duration: 80, useNativeDriver: true }),
+      Animated.timing(blinkFlashAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
+    ]).start();
+  };
+
+  // Countdown timer
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | undefined;
-    
     if (isDetecting) {
-      setCountdown(30); 
-      interval = setInterval(async () => {
+      setCountdown(30);
+      interval = setInterval(() => {
         setCountdown(prev => {
           if (prev <= 1) {
             if (interval) clearInterval(interval);
@@ -53,172 +77,123 @@ export default function BlinkTestScreen() {
           }
           return prev - 1;
         });
-        
-        // Update status every second
-        try {
-          const status = await BlinkDetectionService.getDetectionStatus();
-          setCurrentBlinkCount(status.currentBlinkCount);
-          setCurrentDistanceMeasurements(status.currentDistanceMeasurements);
-        } catch (error) {
-          console.error('Failed to get status:', error);
-        }
       }, 1000);
     }
-    
-    return () => {
-      if (interval) clearInterval(interval);
-    };
+    return () => { if (interval) clearInterval(interval); };
   }, [isDetecting]);
 
+  // Real-time blink event listener (fires on EVERY blink, no delay)
   useEffect(() => {
-    let removeDistanceListener: (() => void) | undefined;
+    let removeBlink: (() => void) | undefined;
     if (isDetecting) {
-      removeDistanceListener = BlinkDetectionService.onDistanceWarning((distance) => {
+      removeBlink = BlinkDetectionService.onBlinkDetected((count) => {
+        setCurrentBlinkCount(count);
+        flashBlinkIndicator(); // Flash animation on every blink
+      });
+    }
+    return () => { if (removeBlink) removeBlink(); };
+  }, [isDetecting]);
+
+  // Real-time distance warning listener
+  useEffect(() => {
+    let removeDistance: (() => void) | undefined;
+    if (isDetecting) {
+      removeDistance = BlinkDetectionService.onDistanceWarning((distance) => {
         setTooCloseWarning(true);
-        
-        // Voice alert throttling (max once every 10 seconds)
+        setCurrentDistanceMeasurements(prev => prev + 1);
+
         const now = Date.now();
         if (now - lastSpokeRef.current > 10000) {
-          Speech.speak("Please maintain a safe distance from the screen", {
-            rate: 0.9,
-            pitch: 1.0,
-          });
+          Speech.speak("Please maintain a safe distance from the screen", { rate: 0.9, pitch: 1.0 });
           lastSpokeRef.current = now;
         }
-
-        // Automatically hide the warning after 2.5 seconds
         setTimeout(() => setTooCloseWarning(false), 2500);
       });
     }
     return () => {
-      if (removeDistanceListener) removeDistanceListener();
+      if (removeDistance) removeDistance();
       setTooCloseWarning(false);
+    };
+  }, [isDetecting]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (isDetecting) {
+        BlinkDetectionService.stopDetection().catch(e => console.log('Cleanup error:', e));
+      }
     };
   }, [isDetecting]);
 
   const handleStartTest = async () => {
     try {
-      // Check permission with Android 13+ camera remount
       if (!permission?.granted) {
-        // Android 13+ fix: Remount camera after permission grant
         const result = await requestPermission();
         if (!result.granted) {
           Alert.alert('Permission Required', 'Camera permission is required for blink detection');
           return;
         }
-        
-        // Force camera remount to prevent corruption on Android 13+
         if (Platform.OS === 'android') {
-          setCameraActive(false);
-          await new Promise(resolve => setTimeout(resolve, 100));
-          setCameraActive(true);
+          await new Promise(resolve => setTimeout(resolve, 200));
         }
       }
-      
-      console.log('📸 Camera permission granted, starting detection...');
-      
-      // Request gallery permission BEFORE starting if eye capture is enabled
+
       if (eyeCaptureEnabled) {
-        const hasGalleryPermission = await EyeImageCaptureService.requestGalleryPermissions();
-        if (!hasGalleryPermission) {
-          Alert.alert(
-            'Gallery Permission Required',
-            'Eye images will be captured but cannot be saved to your gallery without permission. Continue anyway?',
-            [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Continue', onPress: () => {} }
-            ]
-          );
-        }
-      }
-      
-      // Enable eye capture BEFORE starting detection (to avoid race condition)
-      if (eyeCaptureEnabled) {
+        await EyeImageCaptureService.requestGalleryPermissions();
         try {
           await EyeImageCaptureService.enableEyeCapture();
-          console.log('👁️ Eye capture enabled');
         } catch (error) {
           console.error('Failed to enable eye capture:', error);
         }
       }
-      
-      // Reset states
+
       setResult(null);
       setCurrentBlinkCount(0);
       setCurrentDistanceMeasurements(0);
       setCapturedEyeImages(null);
-      
-      // Show camera preview
-      setShowCamera(true);
       setIsDetecting(true);
-      
-      // Small delay to ensure camera is rendered
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Use the improved runDetectionSession that listens for events
+      startPulse();
+
+      await new Promise(resolve => setTimeout(resolve, 300));
+
       const detectionResult = await BlinkDetectionService.runDetectionSession();
       setResult(detectionResult);
       setIsDetecting(false);
-      setShowCamera(false);
-      
-      // Disable eye capture and get captured images
+      stopPulse();
+
       if (eyeCaptureEnabled) {
         try {
-          console.log('🔍 Attempting to retrieve eye images...');
           await EyeImageCaptureService.disableEyeCapture();
-          
-          // Add delay to ensure native files are written and accessible
-          console.log('⏳ Waiting for file system sync...');
           await new Promise(resolve => setTimeout(resolve, 1000));
-          
           const eyeImages = await EyeImageCaptureService.getLatestEyeImages();
           if (eyeImages) {
             setCapturedEyeImages(eyeImages);
-            console.log('✅ Eye images retrieved:', eyeImages);
-            
-            // Auto-save to gallery
-            const saveResult = await EyeImageCaptureService.saveToGallery(eyeImages, true);
-            if (saveResult.success) {
-              console.log(`✅ Eye images automatically saved to gallery: ${saveResult.albumName}`);
-            } else {
-              console.warn('⚠️ Eye images captured but not saved to gallery (permission denied or error)');
-            }
-          } else {
-            console.warn('⚠️ No eye images were retrieved after detection');
+            await EyeImageCaptureService.saveToGallery(eyeImages, true);
           }
         } catch (error) {
-          console.error('❌ Failed to get eye images:', error);
+          console.error('Failed to get eye images:', error);
         }
       }
-      
-      // Save results to Firestore
+
       try {
         await BlinkTrackingService.saveBlinkData(detectionResult);
-        console.log('✅ Blink data saved to Firestore');
       } catch (saveError) {
-        console.error('⚠️ Failed to save blink data:', saveError);
+        console.error('Failed to save blink data:', saveError);
       }
-      
-      // Show results
+
       Alert.alert(
         '📊 Detection Results',
-        `👁️ Blinks: ${detectionResult.blinkCount}\n📏 Avg Distance: ${detectionResult.averageScreenDistance.toFixed(1)} cm\n📐 Measurements: ${detectionResult.distanceMeasurements}/5\n⏱️ Duration: ${detectionResult.durationSeconds}s${eyeCaptureEnabled ? '\n\n👁️ Eye images captured!\n📸 Saved to Gallery: "Vision Guard Eye Images"' : ''}\n\n✅ Data saved to your profile!`,
+        `👁️ Blinks: ${detectionResult.blinkCount}\n📏 Avg Distance: ${detectionResult.averageScreenDistance.toFixed(1)} cm\n📐 Measurements: ${detectionResult.distanceMeasurements}/5\n⏱️ Duration: ${detectionResult.durationSeconds}s\n\n✅ Data saved to your profile!`,
         [{ text: 'OK' }]
       );
-      
+
     } catch (error: any) {
       console.error('Start detection error:', error);
       Alert.alert('Error', error.message || 'Failed to start detection');
       setIsDetecting(false);
-      setShowCamera(false);
-      
-      // Disable eye capture on error
+      stopPulse();
       if (eyeCaptureEnabled) {
-        try {
-          await EyeImageCaptureService.disableEyeCapture();
-        } catch (e) {
-          console.error('Failed to disable eye capture:', e);
-        }
+        try { await EyeImageCaptureService.disableEyeCapture(); } catch (e) {}
       }
     }
   };
@@ -227,27 +202,12 @@ export default function BlinkTestScreen() {
     try {
       await BlinkDetectionService.stopDetection();
     } catch (e) {
-      console.log('Error stopping detection early:', e);
+      console.log('Error stopping early:', e);
     }
-    
     setIsDetecting(false);
-    setShowCamera(false);
-    Alert.alert(
-      '⚠️ Detection Cancelled',
-      'Detection was stopped early.',
-      [{ text: 'OK' }]
-    );
+    stopPulse();
+    Alert.alert('⚠️ Detection Cancelled', 'Detection was stopped early.', [{ text: 'OK' }]);
   };
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      // If user navigates away while detecting, stop it
-      if (isDetecting) {
-        BlinkDetectionService.stopDetection().catch(e => console.log('Cleanup error:', e));
-      }
-    };
-  }, [isDetecting]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
@@ -259,454 +219,266 @@ export default function BlinkTestScreen() {
       </View>
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
 
-      {/* Camera Preview - Only show when detecting */}
-      {showCamera && cameraActive && permission?.granted && (
-        <View style={styles.cameraContainer}>
-          <CameraView
-            ref={cameraRef}
-            style={styles.camera}
-            facing="front"
-          >
-            {/* Overlay with face guide */}
-            <View style={styles.cameraOverlay}>
-              <View style={styles.faceGuide}>
-                <Text style={styles.guideText}>Position your face here</Text>
-                <Ionicons name="scan-outline" size={200} color="rgba(255,255,255,0.5)" />
+        {/* Detection Status Panel (replaces frozen camera view) */}
+        <View style={[styles.detectionPanel, { backgroundColor: theme.card }]}>
+          {isDetecting ? (
+            <>
+              <Animated.View style={[styles.eyeCircle, { backgroundColor: theme.secondary + '20', transform: [{ scale: pulseAnim }] }]}>
+                <Animated.Text style={[styles.eyeEmoji, { opacity: blinkFlashAnim }]}>👁️</Animated.Text>
+              </Animated.View>
+              <Text style={[styles.activeLabel, { color: theme.secondary }]}>Detection Active</Text>
+              <Text style={[styles.activeSub, { color: theme.textSecondary }]}>Keep your face in front of the camera</Text>
+
+              {/* Live Stats */}
+              <View style={styles.liveStatsRow}>
+                <View style={[styles.liveStat, { backgroundColor: theme.background }]}>
+                  <Animated.Text style={[styles.liveStatValue, { color: theme.secondary, opacity: blinkFlashAnim }]}>
+                    {currentBlinkCount}
+                  </Animated.Text>
+                  <Text style={[styles.liveStatLabel, { color: theme.textSecondary }]}>Blinks</Text>
+                </View>
+                <View style={[styles.liveStat, { backgroundColor: theme.background }]}>
+                  <Text style={[styles.liveStatValue, { color: theme.tint }]}>{countdown}s</Text>
+                  <Text style={[styles.liveStatLabel, { color: theme.textSecondary }]}>Remaining</Text>
+                </View>
               </View>
-              
-              {/* Live stats on camera */}
-              <View style={styles.liveStats}>
-                <Text style={styles.liveStatText}>👁️ Blinks: {currentBlinkCount}</Text>
-                <Text style={styles.liveStatText}>📏 Checks: {currentDistanceMeasurements}/5</Text>
-                <Text style={styles.liveStatText}>⏱️ {countdown}s</Text>
-              </View>
-              
-              {/* Too Close Warning Overlay */}
+
+              {/* Distance Warning */}
               {tooCloseWarning && (
-                <View style={styles.warningOverlay}>
-                  <Ionicons name="warning" size={48} color="#FF3B30" />
-                  <Text style={styles.warningText}>TOO CLOSE!</Text>
-                  <Text style={styles.warningSubText}>Please move back</Text>
+                <View style={[styles.warningBanner, { backgroundColor: '#FF3B30' + '15', borderColor: '#FF3B30' }]}>
+                  <Ionicons name="warning" size={20} color="#FF3B30" />
+                  <Text style={[styles.warningText, { color: '#FF3B30' }]}>TOO CLOSE — Move back!</Text>
                 </View>
               )}
-            </View>
-          </CameraView>
+            </>
+          ) : (
+            <>
+              <View style={[styles.eyeCircle, { backgroundColor: theme.card }]}>
+                <Text style={styles.eyeEmoji}>👁️</Text>
+              </View>
+              <Text style={[styles.readyLabel, { color: theme.text }]}>Ready to Detect</Text>
+              <Text style={[styles.activeSub, { color: theme.textSecondary }]}>
+                Tap "Start" — the camera will run invisibly in the background for accurate ML Kit detection
+              </Text>
+            </>
+          )}
         </View>
-      )}
 
-      {/* Stats Display - Only show when NOT showing camera */}
-      {!showCamera && (
+        {/* Stats Display */}
         <View style={styles.statsContainer}>
           <View style={[styles.statCard, { backgroundColor: theme.card }]}>
-            <Ionicons name="eye" size={32} color={theme.secondary} />
+            <Ionicons name="eye" size={28} color={theme.secondary} />
             <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Blinks</Text>
             <Text style={[styles.statValue, { color: theme.text }]}>{currentBlinkCount}</Text>
           </View>
-
           <View style={[styles.statCard, { backgroundColor: theme.card }]}>
-            <Ionicons name="resize" size={32} color={theme.tint} />
-            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Distance Checks</Text>
-            <Text style={[styles.statValue, { color: theme.text }]}>{currentDistanceMeasurements}/5</Text>
+            <Ionicons name="resize" size={28} color={theme.tint} />
+            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Dist. Checks</Text>
+            <Text style={[styles.statValue, { color: theme.text }]}>{currentDistanceMeasurements}</Text>
           </View>
-
           {countdown > 0 && (
             <View style={[styles.statCard, { backgroundColor: theme.card }]}>
-              <Ionicons name="time" size={32} color={theme.warning} />
+              <Ionicons name="time" size={28} color={theme.warning} />
               <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Time Left</Text>
               <Text style={[styles.statValue, { color: theme.text }]}>{countdown}s</Text>
             </View>
           )}
         </View>
-      )}
 
-      {/* Results Display */}
-      {result && (
-        <View style={[styles.resultsContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Text style={[styles.resultsTitle, { color: theme.text }]}>📊 Final Results</Text>
-          <View style={[styles.resultRow, { borderBottomColor: theme.border }]}>
-            <Text style={[styles.resultLabel, { color: theme.textSecondary }]}>Total Blinks:</Text>
-            <Text style={[styles.resultValue, { color: theme.secondary }]}>{result.blinkCount}</Text>
-          </View>
-          <View style={[styles.resultRow, { borderBottomColor: theme.border }]}>
-            <Text style={[styles.resultLabel, { color: theme.textSecondary }]}>Average Distance:</Text>
-            <Text style={[styles.resultValue, { color: theme.secondary }]}>{result.averageScreenDistance.toFixed(1)} cm</Text>
-          </View>
-          <View style={[styles.resultRow, { borderBottomColor: theme.border }]}>
-            <Text style={[styles.resultLabel, { color: theme.textSecondary }]}>Distance Measurements:</Text>
-            <Text style={[styles.resultValue, { color: theme.secondary }]}>{result.distanceMeasurements}/5</Text>
-          </View>
-          <View style={[styles.resultRow, { borderBottomColor: theme.border }]}>
-            <Text style={[styles.resultLabel, { color: theme.textSecondary }]}>Duration:</Text>
-            <Text style={[styles.resultValue, { color: theme.secondary }]}>{result.durationSeconds}s</Text>
-          </View>
-          
-          {/* Show captured eye images */}
-          {capturedEyeImages && (
-            <View style={styles.eyeImagesContainer}>
-              <Text style={[styles.eyeImagesTitle, { color: theme.text }]}>👁️ Captured Eye Images</Text>
-              <View style={styles.eyeImagesRow}>
-                <View style={styles.eyeImageWrapper}>
-                  <Text style={[styles.eyeLabel, { color: theme.textSecondary }]}>Left Eye</Text>
-                  <Image 
-                    source={{ uri: capturedEyeImages.leftEyeUri }} 
-                    style={styles.eyeImage}
-                    resizeMode="cover"
-                  />
-                </View>
-                <View style={styles.eyeImageWrapper}>
-                  <Text style={[styles.eyeLabel, { color: theme.textSecondary }]}>Right Eye</Text>
-                  <Image 
-                    source={{ uri: capturedEyeImages.rightEyeUri }} 
-                    style={styles.eyeImage}
-                    resizeMode="cover"
-                  />
+        {/* Results */}
+        {result && (
+          <View style={[styles.resultsContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <Text style={[styles.resultsTitle, { color: theme.text }]}>📊 Final Results</Text>
+            {[
+              ['Total Blinks', `${result.blinkCount}`],
+              ['Average Distance', `${result.averageScreenDistance.toFixed(1)} cm`],
+              ['Distance Checks', `${result.distanceMeasurements}/5`],
+              ['Duration', `${result.durationSeconds}s`],
+            ].map(([label, value]) => (
+              <View key={label} style={[styles.resultRow, { borderBottomColor: theme.border }]}>
+                <Text style={[styles.resultLabel, { color: theme.textSecondary }]}>{label}:</Text>
+                <Text style={[styles.resultValue, { color: theme.secondary }]}>{value}</Text>
+              </View>
+            ))}
+            {capturedEyeImages && (
+              <View style={styles.eyeImagesContainer}>
+                <Text style={[styles.eyeImagesTitle, { color: theme.text }]}>👁️ Captured Eye Images</Text>
+                <View style={styles.eyeImagesRow}>
+                  {[['Left Eye', capturedEyeImages.leftEyeUri], ['Right Eye', capturedEyeImages.rightEyeUri]].map(([label, uri]) => (
+                    <View key={label} style={styles.eyeImageWrapper}>
+                      <Text style={[styles.eyeLabel, { color: theme.textSecondary }]}>{label}</Text>
+                      <Image source={{ uri }} style={styles.eyeImage} resizeMode="cover" />
+                    </View>
+                  ))}
                 </View>
               </View>
-            </View>
+            )}
+          </View>
+        )}
+
+        {/* Controls */}
+        <View style={styles.controlsContainer}>
+          {!isDetecting ? (
+            <TouchableOpacity
+              style={[styles.startButton, { backgroundColor: theme.secondary }]}
+              onPress={handleStartTest}
+            >
+              <Ionicons name="play-circle" size={32} color={theme.background} />
+              <Text style={[styles.buttonText, { color: theme.background }]}>Start 30s Detection</Text>
+            </TouchableOpacity>
+          ) : (
+            <>
+              <View style={styles.detectingIndicator}>
+                <ActivityIndicator size="large" color={theme.secondary} />
+                <Text style={[styles.detectingText, { color: theme.secondary }]}>
+                  Camera processing in background...
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.stopButton, { backgroundColor: theme.error }]}
+                onPress={handleStopTest}
+              >
+                <Ionicons name="stop-circle" size={32} color={theme.background} />
+                <Text style={[styles.buttonText, { color: theme.background }]}>Stop Early</Text>
+              </TouchableOpacity>
+            </>
           )}
         </View>
-      )}
 
-      {/* Control Buttons */}
-      <View style={styles.controlsContainer}>
-        {!isDetecting ? (
-          <TouchableOpacity 
-            style={[styles.startButton, { backgroundColor: theme.secondary }]} 
-            onPress={handleStartTest}
-            disabled={isDetecting}
-          >
-            <Ionicons name="play-circle" size={32} color={theme.background} />
-            <Text style={[styles.buttonText, { color: theme.background }]}>Start 30s Detection</Text>
-          </TouchableOpacity>
-        ) : (
-          <>
-            <View style={styles.detectingIndicator}>
-              <ActivityIndicator size="large" color={theme.secondary} />
-              <Text style={[styles.detectingText, { color: theme.secondary }]}>Detecting...</Text>
+        {/* Instructions */}
+        <View style={[styles.instructionsContainer, { backgroundColor: theme.card }]}>
+          <Text style={[styles.instructionTitle, { color: theme.text }]}>📋 Instructions:</Text>
+          {[
+            '• Allow camera permission when prompted',
+            '• Sit in front of your camera as usual',
+            '• The camera runs invisibly — ML Kit tracks your face',
+            '• Blink count updates instantly as you blink',
+            '• Distance is checked every 3 seconds',
+            '• You\'ll be warned if you\'re too close',
+            '• Results appear automatically after 30 seconds',
+          ].map(t => (
+            <Text key={t} style={[styles.instructionText, { color: theme.textSecondary }]}>{t}</Text>
+          ))}
+
+          <View style={styles.settingRow}>
+            <View style={styles.settingInfo}>
+              <Ionicons name="eye-outline" size={24} color={theme.secondary} />
+              <Text style={[styles.settingLabel, { color: theme.text }]}>Capture Eye Images</Text>
             </View>
-            <TouchableOpacity 
-              style={[styles.stopButton, { backgroundColor: theme.error }]} 
-              onPress={handleStopTest}
-            >
-              <Ionicons name="stop-circle" size={32} color={theme.background} />
-              <Text style={[styles.buttonText, { color: theme.background }]}>Stop Early</Text>
-            </TouchableOpacity>
-          </>
-        )}
-      </View>
-
-      {/* Instructions */}
-      <View style={[styles.instructionsContainer, { backgroundColor: theme.card }]}>
-        <Text style={[styles.instructionTitle, { color: theme.text }]}>📋 Instructions:</Text>
-        <Text style={[styles.instructionText, { color: theme.textSecondary }]}>• Allow camera permission when prompted</Text>
-        <Text style={[styles.instructionText, { color: theme.textSecondary }]}>• Position your face in front of camera</Text>
-        <Text style={[styles.instructionText, { color: theme.textSecondary }]}>• Enable eye capture to save eye images</Text>
-        <Text style={[styles.instructionText, { color: theme.textSecondary }]}>• Tap "Start 30s Detection"</Text>
-        <Text style={[styles.instructionText, { color: theme.textSecondary }]}>• Blink naturally for 30 seconds</Text>
-        <Text style={[styles.instructionText, { color: theme.textSecondary }]}>• Distance measured every 3 seconds</Text>
-        <Text style={[styles.instructionText, { color: theme.textSecondary }]}>• Results shown automatically</Text>
-        
-        {/* Eye Capture Toggle */}
-        <View style={styles.settingRow}>
-          <View style={styles.settingInfo}>
-            <Ionicons name="eye-outline" size={24} color={theme.secondary} />
-            <Text style={[styles.settingLabel, { color: theme.text }]}>Capture Eye Images</Text>
+            <Switch
+              value={eyeCaptureEnabled}
+              onValueChange={setEyeCaptureEnabled}
+              trackColor={{ false: theme.border, true: theme.secondary + '80' }}
+              thumbColor={eyeCaptureEnabled ? theme.secondary : theme.textSecondary}
+              disabled={isDetecting}
+            />
           </View>
-          <Switch
-            value={eyeCaptureEnabled}
-            onValueChange={setEyeCaptureEnabled}
-            trackColor={{ false: theme.border, true: theme.secondary + '80' }}
-            thumbColor={eyeCaptureEnabled ? theme.secondary : theme.textSecondary}
-            disabled={isDetecting}
-          />
-        </View>
-        
-        {/* View Gallery Button */}
-        <TouchableOpacity 
-          style={[styles.galleryButton, { backgroundColor: theme.tint + '20', borderColor: theme.tint }]}
-          onPress={() => router.push('/eye-images-gallery' as any)}
-        >
-          <Ionicons name="images-outline" size={20} color={theme.tint} />
-          <Text style={[styles.galleryButtonText, { color: theme.tint }]}>View Eye Images Gallery</Text>
-        </TouchableOpacity>
-      </View>
 
-      {/* Tech Info */}
-      <View style={styles.techInfo}>
-        <Text style={[styles.techText, { color: theme.textSecondary }]}>Powered by ML Kit Face Detection</Text>
-        <Text style={[styles.techText, { color: theme.textSecondary }]}>EAR-based blink detection algorithm</Text>
-      </View>
+          <TouchableOpacity
+            style={[styles.galleryButton, { backgroundColor: theme.tint + '20', borderColor: theme.tint }]}
+            onPress={() => router.push('/eye-images-gallery' as any)}
+          >
+            <Ionicons name="images-outline" size={20} color={theme.tint} />
+            <Text style={[styles.galleryButtonText, { color: theme.tint }]}>View Eye Images Gallery</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.techInfo}>
+          <Text style={[styles.techText, { color: theme.textSecondary }]}>Powered by ML Kit Face Detection</Text>
+          <Text style={[styles.techText, { color: theme.textSecondary }]}>Real-time EAR-based blink detection</Text>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingBottom: 20,
-  },
+  safeArea: { flex: 1 },
+  scrollContent: { flexGrow: 1, paddingBottom: 20 },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    zIndex: 10,
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 20, paddingVertical: 15,
+    elevation: 4, shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, zIndex: 10,
   },
-  backButton: {
-    marginRight: 15,
+  backButton: { marginRight: 15 },
+  headerTitle: { fontSize: 22, fontWeight: 'bold' },
+  detectionPanel: {
+    margin: 20, padding: 24, borderRadius: 20,
+    alignItems: 'center', elevation: 4,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 6,
   },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
+  eyeCircle: {
+    width: 120, height: 120, borderRadius: 60,
+    justifyContent: 'center', alignItems: 'center', marginBottom: 16,
   },
-  cameraContainer: {
-    width: '100%',
-    height: 400,
-    marginVertical: 20,
-    elevation: 10,
+  eyeEmoji: { fontSize: 56 },
+  activeLabel: { fontSize: 20, fontWeight: 'bold', marginBottom: 6 },
+  readyLabel: { fontSize: 20, fontWeight: 'bold', marginBottom: 6 },
+  activeSub: { fontSize: 14, textAlign: 'center', lineHeight: 20, marginBottom: 16 },
+  liveStatsRow: { flexDirection: 'row', gap: 16, marginTop: 8 },
+  liveStat: {
+    flex: 1, alignItems: 'center', padding: 16,
+    borderRadius: 14, elevation: 2,
   },
-  camera: {
-    flex: 1,
+  liveStatValue: { fontSize: 36, fontWeight: 'bold' },
+  liveStatLabel: { fontSize: 12, marginTop: 4 },
+  warningBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    marginTop: 12, paddingVertical: 10, paddingHorizontal: 20,
+    borderRadius: 12, borderWidth: 1.5,
   },
-  cameraOverlay: {
-    flex: 1,
-    backgroundColor: 'transparent',
-  },
-  faceGuide: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  guideText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 20,
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: -1, height: 1 },
-    textShadowRadius: 10,
-  },
-  liveStats: {
-    position: 'absolute',
-    top: 20,
-    right: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    padding: 15,
-    borderRadius: 12,
-  },
-  liveStatText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginVertical: 3,
-  },
-  warningOverlay: {
-    position: 'absolute',
-    top: '35%',
-    left: 20,
-    right: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    padding: 20,
-    borderRadius: 16,
-    alignItems: 'center',
-    borderWidth: 3,
-    borderColor: '#FF3B30',
-  },
-  warningText: {
-    color: '#FF3B30',
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginTop: 10,
-  },
-  warningSubText: {
-    color: '#333',
-    fontSize: 16,
-    fontWeight: '600',
-    marginTop: 5,
-  },
+  warningText: { fontSize: 15, fontWeight: 'bold' },
   statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingHorizontal: 20,
-    paddingVertical: 30,
+    flexDirection: 'row', justifyContent: 'space-around',
+    paddingHorizontal: 20, paddingVertical: 10,
   },
   statCard: {
-    padding: 20,
-    borderRadius: 16,
-    alignItems: 'center',
-    minWidth: 100,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
+    padding: 16, borderRadius: 16, alignItems: 'center', minWidth: 90,
+    elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4,
   },
-  statLabel: {
-    fontSize: 12,
-    marginTop: 8,
-    marginBottom: 4,
-  },
-  statValue: {
-    fontSize: 28,
-    fontWeight: 'bold',
-  },
+  statLabel: { fontSize: 11, marginTop: 6, marginBottom: 2 },
+  statValue: { fontSize: 24, fontWeight: 'bold' },
   resultsContainer: {
-    margin: 20,
-    padding: 20,
-    borderRadius: 16,
-    borderWidth: 1,
-    elevation: 5,
+    margin: 20, padding: 20, borderRadius: 16, borderWidth: 1, elevation: 5,
   },
-  resultsTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 15,
-    textAlign: 'center',
-  },
-  resultRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-  },
-  resultLabel: {
-    fontSize: 16,
-  },
-  resultValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  controlsContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-  },
+  resultsTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 15, textAlign: 'center' },
+  resultRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1 },
+  resultLabel: { fontSize: 16 },
+  resultValue: { fontSize: 16, fontWeight: 'bold' },
+  controlsContainer: { paddingHorizontal: 20, paddingVertical: 20 },
   startButton: {
-    flexDirection: 'row',
-    padding: 20,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    elevation: 5,
+    flexDirection: 'row', padding: 20, borderRadius: 16,
+    alignItems: 'center', justifyContent: 'center', gap: 12, elevation: 5,
   },
   stopButton: {
-    flexDirection: 'row',
-    padding: 20,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    marginTop: 10,
-    elevation: 5,
+    flexDirection: 'row', padding: 20, borderRadius: 16,
+    alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 10, elevation: 5,
   },
-  buttonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  detectingIndicator: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  detectingText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginTop: 10,
-  },
-  instructionsContainer: {
-    margin: 20,
-    padding: 20,
-    borderRadius: 16,
-  },
-  instructionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 12,
-  },
-  instructionText: {
-    fontSize: 14,
-    marginBottom: 8,
-    lineHeight: 20,
-  },
-  techInfo: {
-    alignItems: 'center',
-    paddingBottom: 30,
-  },
-  techText: {
-    fontSize: 12,
-    marginTop: 4,
-  },
-  eyeImagesContainer: {
-    marginTop: 20,
-    paddingTop: 15,
-    borderTopWidth: 1,
-    borderTopColor: '#ddd',
-  },
-  eyeImagesTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 15,
-    textAlign: 'center',
-  },
-  eyeImagesRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-  },
-  eyeImageWrapper: {
-    alignItems: 'center',
-  },
-  eyeLabel: {
-    fontSize: 14,
-    marginBottom: 8,
-  },
-  eyeImage: {
-    width: 120,
-    height: 80,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: '#ddd',
-  },
+  buttonText: { fontSize: 18, fontWeight: 'bold' },
+  detectingIndicator: { alignItems: 'center', marginBottom: 20 },
+  detectingText: { fontSize: 16, fontWeight: '600', marginTop: 10, textAlign: 'center' },
+  instructionsContainer: { margin: 20, padding: 20, borderRadius: 16 },
+  instructionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 12 },
+  instructionText: { fontSize: 14, marginBottom: 6, lineHeight: 20 },
   settingRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 20,
-    paddingTop: 15,
-    borderTopWidth: 1,
-    borderTopColor: '#ddd',
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    marginTop: 20, paddingTop: 15, borderTopWidth: 1, borderTopColor: '#ddd',
   },
-  settingInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  settingLabel: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
+  settingInfo: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  settingLabel: { fontSize: 16, fontWeight: '500' },
   galleryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    marginTop: 16,
-    gap: 8,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    paddingVertical: 12, paddingHorizontal: 20, borderRadius: 12,
+    borderWidth: 1.5, marginTop: 16, gap: 8,
   },
-  galleryButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
+  galleryButtonText: { fontSize: 15, fontWeight: '600' },
+  techInfo: { alignItems: 'center', paddingBottom: 30 },
+  techText: { fontSize: 12, marginTop: 4 },
+  eyeImagesContainer: { marginTop: 20, paddingTop: 15, borderTopWidth: 1, borderTopColor: '#ddd' },
+  eyeImagesTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 15, textAlign: 'center' },
+  eyeImagesRow: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center' },
+  eyeImageWrapper: { alignItems: 'center' },
+  eyeLabel: { fontSize: 14, marginBottom: 8 },
+  eyeImage: { width: 120, height: 80, borderRadius: 8, borderWidth: 2, borderColor: '#ddd' },
 });
-

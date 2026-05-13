@@ -98,6 +98,21 @@ class BlinkDetectionService {
   }
 
   /**
+   * Listen for real-time blink events (fires on EVERY blink immediately)
+   * @param callback Function to call with updated blink count
+   * @returns A function to remove the listener
+   */
+  onBlinkDetected(callback: (blinkCount: number) => void): () => void {
+    if (!eventEmitter) return () => {};
+    
+    const subscription = eventEmitter.addListener('onBlinkDetected', (data: { blinkCount: number }) => {
+      callback(data.blinkCount);
+    });
+    
+    return () => subscription.remove();
+  }
+
+  /**
    * Run complete detection session and return results
    * Convenience method that starts, waits, and returns results
    */

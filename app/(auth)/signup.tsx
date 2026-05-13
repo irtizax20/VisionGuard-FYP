@@ -41,6 +41,7 @@ export default function SignUpScreen() {
   const [verificationStatus, setVerificationStatus] = useState<'none' | 'sending' | 'pending' | 'verified'>('none');
   const [isListening, setIsListening] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [parentOtpInput, setParentOtpInput] = useState('');
   
   const router = useRouter();
 
@@ -218,13 +219,12 @@ export default function SignUpScreen() {
         return;
       }
 
-      setVerificationToken(approvalRes.token);
+      setVerificationToken(approvalRes.token!);
       setVerificationStatus('pending');
-      setIsListening(true);
 
       Alert.alert(
-        '📧 Verification Email Sent',
-        `A verification email has been sent to ${parentEmail}. Please ask your parent to check their email and click the verification link.`,
+        '📱 Ask Your Parent',
+        `A 6-digit verification code has been prepared for ${parentEmail}.\n\nAsk your parent to:\n1. Open VisionGuard app\n2. Go to Parent Dashboard\n3. Find the approval code and tell it to you\n\nThen enter the code below.`,
         [{ text: 'OK' }]
       );
 
@@ -493,19 +493,60 @@ export default function SignUpScreen() {
                     {verificationStatus === 'sending' && (
                       <ActivityIndicator size="small" color="#FAFAFA" style={{ marginRight: 8 }} />
                     )}
-                    {verificationStatus === 'pending' && (
-                      <ActivityIndicator size="small" color="#FAFAFA" style={{ marginRight: 8 }} />
-                    )}
                     {verificationStatus === 'verified' && (
                       <Ionicons name="checkmark-circle" size={20} color="#FAFAFA" style={{ marginRight: 8 }} />
                     )}
                     <Text style={styles.verificationButtonText}>
                       {verificationStatus === 'none' && 'Send Verification'}
                       {verificationStatus === 'sending' && 'Sending...'}
-                      {verificationStatus === 'pending' && 'Waiting for parent...'}
+                      {verificationStatus === 'pending' && 'Resend Code'}
                       {verificationStatus === 'verified' && '✅ Parent Verified!'}
                     </Text>
                   </TouchableOpacity>
+
+                  {/* OTP Entry — shown after code is sent */}
+                  {verificationStatus === 'pending' && (
+                    <View style={{ marginTop: 12 }}>
+                      <Text style={{ color: '#2B383D', fontSize: 14, marginBottom: 6, fontWeight: '600' }}>
+                        📞 Enter the 6-digit code from your parent:
+                      </Text>
+                      <View style={styles.inputContainer}>
+                        <Ionicons name="keypad-outline" size={20} color="#2B383D" style={styles.inputIcon} />
+                        <TextInput
+                          style={styles.input}
+                          placeholder="6-digit code"
+                          placeholderTextColor="#8A9BA8"
+                          keyboardType="number-pad"
+                          maxLength={6}
+                          value={parentOtpInput}
+                          onChangeText={setParentOtpInput}
+                        />
+                      </View>
+                      <TouchableOpacity
+                        style={[styles.verificationButton, { backgroundColor: '#27AE60', marginTop: 8 }]}
+                        onPress={async () => {
+                          if (!parentOtpInput || parentOtpInput.length !== 6) {
+                            Alert.alert('Invalid Code', 'Please enter the full 6-digit code.');
+                            return;
+                          }
+                          if (!verificationToken) {
+                            Alert.alert('Error', 'No verification session found. Please resend.');
+                            return;
+                          }
+                          const { verifyParentOTP } = await import('../../utils/ParentApproval');
+                          const verifyResult = await verifyParentOTP(verificationToken, parentOtpInput);
+                          if (verifyResult.ok) {
+                            setVerificationStatus('verified');
+                            Alert.alert('✅ Verified!', 'Parent code accepted! You can now continue.', [{ text: 'Continue' }]);
+                          } else {
+                            Alert.alert('❌ Wrong Code', verifyResult.message || 'Incorrect code. Try again.');
+                          }
+                        }}
+                      >
+                        <Text style={styles.verificationButtonText}>Verify Code</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </>
               )}
 
