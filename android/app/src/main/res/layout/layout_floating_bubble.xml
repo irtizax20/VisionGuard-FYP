@@ -1,23 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  72dp outer FrameLayout = total touch area (contains both the bubble + X button)
+  56dp inner FrameLayout (drag_handle) = the draggable eye bubble
+  22dp TextView (btn_close_bubble) = the independent close button (top-right corner)
+
+  Touch listener is on drag_handle ONLY → X button receives clicks freely.
+-->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="72dp"
     android:layout_height="72dp">
 
-    <!-- 1x1 invisible preview — required to bind CameraX lifecycle in background -->
+    <!-- 1x1 invisible CameraX preview surface (required to bind lifecycle) -->
     <androidx.camera.view.PreviewView
         android:id="@+id/hidden_preview"
         android:layout_width="1px"
         android:layout_height="1px"
         android:visibility="visible" />
 
-    <!-- Main bubble circle -->
+    <!-- Draggable eye bubble (drag listener attached here, NOT on root) -->
     <FrameLayout
+        android:id="@+id/drag_handle"
         android:layout_width="56dp"
         android:layout_height="56dp"
         android:layout_gravity="bottom|start"
-        android:background="@drawable/bg_floating_bubble">
+        android:background="@drawable/bg_floating_bubble"
+        android:clickable="true"
+        android:focusable="true">
 
-        <!-- Eye emoji label -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="match_parent"
@@ -25,9 +34,14 @@
             android:textSize="24sp"
             android:gravity="center"
             android:padding="4dp" />
+
     </FrameLayout>
 
-    <!-- Small × close button (top-right corner of the 72dp frame) -->
+    <!--
+      Close (×) button — top-right corner of the 72dp outer frame.
+      NOT inside drag_handle, so it receives touch events independently.
+      Rounded with a dark semi-transparent circle.
+    -->
     <TextView
         android:id="@+id/btn_close_bubble"
         android:layout_width="22dp"
@@ -37,9 +51,10 @@
         android:textSize="11sp"
         android:textColor="#FFFFFF"
         android:gravity="center"
-        android:background="#CC333333"
         android:textStyle="bold"
+        android:background="#CC333333"
         android:clickable="true"
-        android:focusable="true" />
+        android:focusable="true"
+        android:elevation="8dp" />
 
 </FrameLayout>

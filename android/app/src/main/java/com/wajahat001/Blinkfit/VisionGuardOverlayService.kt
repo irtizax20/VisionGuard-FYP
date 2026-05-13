@@ -152,43 +152,37 @@ class VisionGuardOverlayService : LifecycleService(), TextToSpeech.OnInitListene
 
         overlayView = LayoutInflater.from(this).inflate(R.layout.layout_floating_bubble, null)
 
-        // Find the close (X) button inside the bubble and wire it up
+        // ✅ Close button is a SIBLING of drag_handle, not a child.
+        // It freely receives its own click events — no touch interception from drag_handle.
         val closeButton = overlayView.findViewById<View>(R.id.btn_close_bubble)
         closeButton?.setOnClickListener {
-            // Hide bubble but keep service running
             startService(Intent(this, VisionGuardOverlayService::class.java).apply {
                 action = ACTION_HIDE_BUBBLE
             })
         }
 
+        // ✅ Drag listener on drag_handle ONLY (the inner eye circle).
+        // This does NOT interfere with btn_close_bubble which is a separate sibling view.
+        val dragHandle = overlayView.findViewById<View>(R.id.drag_handle)
         var initialX = 0
         var initialY = 0
         var initialTouchX = 0f
         var initialTouchY = 0f
-        var moveDetected = false
 
-        overlayView.setOnTouchListener { _, event ->
+        dragHandle?.setOnTouchListener { _, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
                     initialX = layoutParams.x
                     initialY = layoutParams.y
                     initialTouchX = event.rawX
                     initialTouchY = event.rawY
-                    moveDetected = false
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    val dx = (event.rawX - initialTouchX).toInt()
-                    val dy = (event.rawY - initialTouchY).toInt()
-                    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) moveDetected = true
-                    layoutParams.x = initialX + dx
-                    layoutParams.y = initialY + dy
+                    layoutParams.x = initialX + (event.rawX - initialTouchX).toInt()
+                    layoutParams.y = initialY + (event.rawY - initialTouchY).toInt()
                     windowManager.updateViewLayout(overlayView, layoutParams)
                     true
-                }
-                MotionEvent.ACTION_UP -> {
-                    // Let child views handle clicks (like the X button)
-                    false
                 }
                 else -> false
             }
