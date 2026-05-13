@@ -1,23 +1,45 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="56dp"
-    android:layout_height="56dp"
-    android:background="@drawable/bg_floating_bubble">
+    android:layout_width="72dp"
+    android:layout_height="72dp">
 
-    <!-- 1x1 invisible preview view required to bind camera lifecycle in background -->
+    <!-- 1x1 invisible preview — required to bind CameraX lifecycle in background -->
     <androidx.camera.view.PreviewView
         android:id="@+id/hidden_preview"
         android:layout_width="1px"
         android:layout_height="1px"
         android:visibility="visible" />
 
-    <!-- Small eye emoji label instead of large launcher icon -->
+    <!-- Main bubble circle -->
+    <FrameLayout
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_gravity="bottom|start"
+        android:background="@drawable/bg_floating_bubble">
+
+        <!-- Eye emoji label -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:text="👁️"
+            android:textSize="24sp"
+            android:gravity="center"
+            android:padding="4dp" />
+    </FrameLayout>
+
+    <!-- Small × close button (top-right corner of the 72dp frame) -->
     <TextView
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:text="👁️"
-        android:textSize="26sp"
+        android:id="@+id/btn_close_bubble"
+        android:layout_width="22dp"
+        android:layout_height="22dp"
+        android:layout_gravity="top|end"
+        android:text="✕"
+        android:textSize="11sp"
+        android:textColor="#FFFFFF"
         android:gravity="center"
-        android:padding="4dp" />
+        android:background="#CC333333"
+        android:textStyle="bold"
+        android:clickable="true"
+        android:focusable="true" />
 
 </FrameLayout>

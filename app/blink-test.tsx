@@ -82,48 +82,46 @@ export default function BlinkTestScreen() {
     return () => { if (interval) clearInterval(interval); };
   }, [isDetecting]);
 
-  // Real-time blink event listener (fires on EVERY blink, no delay)
-  useEffect(() => {
-    let removeBlink: (() => void) | undefined;
-    if (isDetecting) {
-      removeBlink = BlinkDetectionService.onBlinkDetected((count) => {
-        setCurrentBlinkCount(count);
-        flashBlinkIndicator(); // Flash animation on every blink
-      });
-    }
-    return () => { if (removeBlink) removeBlink(); };
-  }, [isDetecting]);
+  // Use a ref so we can attach/detach listeners synchronously (not via React state)
+  const removeBlinkListenerRef = useRef<(() => void) | null>(null);
+  const removeDistListenerRef  = useRef<(() => void) | null>(null);
+  const isDetectingRef = useRef(false);
 
-  // Real-time distance warning listener
-  useEffect(() => {
-    let removeDistance: (() => void) | undefined;
-    if (isDetecting) {
-      removeDistance = BlinkDetectionService.onDistanceWarning((distance) => {
-        setTooCloseWarning(true);
-        setCurrentDistanceMeasurements(prev => prev + 1);
+  const attachListeners = () => {
+    // Blink listener — fires on every single blink immediately
+    removeBlinkListenerRef.current = BlinkDetectionService.onBlinkDetected((count) => {
+      setCurrentBlinkCount(count);
+      flashBlinkIndicator();
+    });
+    // Distance warning listener
+    removeDistListenerRef.current = BlinkDetectionService.onDistanceWarning((distance) => {
+      setCurrentDistanceMeasurements(prev => prev + 1);
+      setTooCloseWarning(true);
+      const now = Date.now();
+      if (now - lastSpokeRef.current > 10000) {
+        Speech.speak('Please maintain a safe distance from the screen', { rate: 0.9 });
+        lastSpokeRef.current = now;
+      }
+      setTimeout(() => setTooCloseWarning(false), 2500);
+    });
+  };
 
-        const now = Date.now();
-        if (now - lastSpokeRef.current > 10000) {
-          Speech.speak("Please maintain a safe distance from the screen", { rate: 0.9, pitch: 1.0 });
-          lastSpokeRef.current = now;
-        }
-        setTimeout(() => setTooCloseWarning(false), 2500);
-      });
-    }
-    return () => {
-      if (removeDistance) removeDistance();
-      setTooCloseWarning(false);
-    };
-  }, [isDetecting]);
+  const detachListeners = () => {
+    removeBlinkListenerRef.current?.();
+    removeDistListenerRef.current?.();
+    removeBlinkListenerRef.current = null;
+    removeDistListenerRef.current  = null;
+  };
 
-  // Cleanup on unmount
+  // Unmount cleanup only
   useEffect(() => {
     return () => {
-      if (isDetecting) {
-        BlinkDetectionService.stopDetection().catch(e => console.log('Cleanup error:', e));
+      detachListeners();
+      if (isDetectingRef.current) {
+        BlinkDetectionService.stopDetection().catch(() => {});
       }
     };
-  }, [isDetecting]);
+  }, []);
 
   const handleStartTest = async () => {
     try {
@@ -152,13 +150,18 @@ export default function BlinkTestScreen() {
       setCurrentDistanceMeasurements(0);
       setCapturedEyeImages(null);
       setIsDetecting(true);
+      isDetectingRef.current = true;
       startPulse();
 
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // Attach listeners NOW (synchronously, before the native session starts)
+      // This avoids the React state → useEffect → re-render race condition
+      attachListeners();
 
       const detectionResult = await BlinkDetectionService.runDetectionSession();
       setResult(detectionResult);
       setIsDetecting(false);
+      isDetectingRef.current = false;
+      detachListeners();
       stopPulse();
 
       if (eyeCaptureEnabled) {
@@ -191,6 +194,8 @@ export default function BlinkTestScreen() {
       console.error('Start detection error:', error);
       Alert.alert('Error', error.message || 'Failed to start detection');
       setIsDetecting(false);
+      isDetectingRef.current = false;
+      detachListeners();
       stopPulse();
       if (eyeCaptureEnabled) {
         try { await EyeImageCaptureService.disableEyeCapture(); } catch (e) {}
@@ -204,6 +209,8 @@ export default function BlinkTestScreen() {
     } catch (e) {
       console.log('Error stopping early:', e);
     }
+    isDetectingRef.current = false;
+    detachListeners();
     setIsDetecting(false);
     stopPulse();
     Alert.alert('⚠️ Detection Cancelled', 'Detection was stopped early.', [{ text: 'OK' }]);
