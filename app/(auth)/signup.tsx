@@ -2,11 +2,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { doc, onSnapshot } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
+import ParentAuthModal from '../../components/ParentAuthModal';
 import {
   ActivityIndicator,
   Alert,
   Dimensions,
-  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -14,12 +14,9 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   View
 } from 'react-native';
-import { createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
-import { auth, db } from '../../firebase/firebaseConfig';
-import { setDoc } from 'firebase/firestore';
+import { db } from '../../firebase/firebaseConfig';
 // import { validateParentEmail } from '../../utils/ParentVerification';
 import { DateOfBirthPicker } from '../../components/ui/DateOfBirthPicker';
 // Sign Up Screen Component
@@ -35,15 +32,16 @@ export default function SignUpScreen() {
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [category, setCategory] = useState('adult');
   const [parentEmail, setParentEmail] = useState('');
-  
+
   // Parent verification states
   const [verificationToken, setVerificationToken] = useState<string | null>(null);
   const [verificationStatus, setVerificationStatus] = useState<'none' | 'sending' | 'pending' | 'verified'>('none');
   const [isListening, setIsListening] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [parentOtpInput, setParentOtpInput] = useState('');
-  const [generatedOtpCode, setGeneratedOtpCode] = useState<string | null>(null); // stored for single-phone demo
-  
+  const [generatedOtpCode, setGeneratedOtpCode] = useState<string | null>(null);
+  const [showParentAuthModal, setShowParentAuthModal] = useState(false);
+
   const router = useRouter();
 
   // Enable parent approval flow for child signups
@@ -54,14 +52,14 @@ export default function SignUpScreen() {
     if (!verificationToken || !isListening) return;
 
     console.log('👂 Starting real-time listener for verification token:', verificationToken);
-    
+
     const unsubscribe = onSnapshot(
       doc(db, 'parent_verifications', verificationToken),
       (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
           console.log('📡 Verification status update:', data.status);
-          
+
           if (data.status === 'verified') {
             setVerificationStatus('verified');
             setIsListening(false);
@@ -99,7 +97,7 @@ export default function SignUpScreen() {
     const birth = new Date(birthDate);
     let age = today.getFullYear() - birth.getFullYear();
     const monthDiff = today.getMonth() - birth.getMonth();
-    
+
     if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
       age--;
     }
@@ -109,12 +107,12 @@ export default function SignUpScreen() {
   // Validate Gmail address
   const validateGmailAddress = (emailAddress: string): { valid: boolean; error?: string } => {
     const trimmedEmail = emailAddress.trim().toLowerCase();
-    
+
     // Check if it's a Gmail address
     if (!trimmedEmail.endsWith('@gmail.com')) {
       return { valid: false, error: 'Only Gmail addresses are allowed. Please use your Gmail account.' };
     }
-    
+
     return { valid: true };
   };
 
@@ -140,7 +138,7 @@ export default function SignUpScreen() {
     const hasNumber = /\d/.test(pw);
     const hasSpecial = /[^A-Za-z0-9]/.test(pw);
     const isValidLength = pw.length >= 6 && pw.length <= 15;
-    
+
     return hasLowercase && hasUppercase && hasNumber && hasSpecial && isValidLength;
   };
 
@@ -191,17 +189,17 @@ export default function SignUpScreen() {
 
       // Import UserManagementService
       const { UserManagementService } = await import('../../services/UserManagementService');
-      
+
       // Validate parent email exists and child limit not exceeded
       console.log('🔍 Validating parent email...');
       const validation = await UserManagementService.validateChildSignup(parentEmail);
-      
+
       if (!validation.isValid) {
         setVerificationStatus('none');
         Alert.alert('Parent Validation Failed', validation.error || 'Unable to validate parent information.');
         return;
       }
-      
+
       console.log('✅ Parent validation successful, sending verification email...');
 
       const { requestParentApproval } = await import('../../utils/ParentApproval');
@@ -221,14 +219,11 @@ export default function SignUpScreen() {
       }
 
       setVerificationToken(approvalRes.token!);
-      setGeneratedOtpCode(approvalRes.message || null); // store OTP for single-device access
+      setGeneratedOtpCode(approvalRes.message || null);
       setVerificationStatus('pending');
 
-      Alert.alert(
-        '📱 Ask Your Parent',
-        `A 6-digit verification code has been prepared for ${parentEmail}.\n\nAsk your parent to:\n1. Open VisionGuard app → Parent Dashboard\n2. See the yellow code card and tell you the code\n\n💡 Only one phone? Tap "Show Code" below to see it directly.`,
-        [{ text: 'OK' }]
-      );
+      // Immediately open the secure parent auth modal
+      setShowParentAuthModal(true);
 
     } catch (error: any) {
       console.error('❌ Verification error:', error);
@@ -307,14 +302,14 @@ export default function SignUpScreen() {
   const navigateToFaceCapture = () => {
     router.push({
       pathname: '/face-capture',
-      params: { 
-        name, 
-        email, 
-        password, 
+      params: {
+        name,
+        email,
+        password,
         dateOfBirth,
-        category, 
+        category,
         parentEmail: category === 'child' ? parentEmail : '',
-        token: verificationToken || '' 
+        token: verificationToken || ''
       },
     });
   };
@@ -429,11 +424,11 @@ export default function SignUpScreen() {
                   value={confirmPassword}
                 />
                 {confirmPassword.length > 0 && (
-                  <Ionicons 
-                    name={password === confirmPassword ? "checkmark-circle" : "close-circle"} 
-                    size={20} 
-                    color={password === confirmPassword ? "#4CAF50" : "#F44336"} 
-                    style={{ marginLeft: 8 }} 
+                  <Ionicons
+                    name={password === confirmPassword ? "checkmark-circle" : "close-circle"}
+                    size={20}
+                    color={password === confirmPassword ? "#4CAF50" : "#F44336"}
+                    style={{ marginLeft: 8 }}
                   />
                 )}
               </View>
@@ -483,7 +478,7 @@ export default function SignUpScreen() {
                   </View>
 
                   {/* Send Verification Button */}
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={[
                       styles.verificationButton,
                       verificationStatus === 'verified' && styles.verifiedButton,
@@ -506,68 +501,15 @@ export default function SignUpScreen() {
                     </Text>
                   </TouchableOpacity>
 
-                  {/* OTP Entry — shown after code is sent */}
+                  {/* Pending status — open the secure parent auth modal */}
                   {verificationStatus === 'pending' && (
-                    <View style={{ marginTop: 12 }}>
-                      <Text style={{ color: '#2B383D', fontSize: 14, marginBottom: 6, fontWeight: '600' }}>
-                        📞 Enter the 6-digit code from your parent:
-                      </Text>
-                      <View style={styles.inputContainer}>
-                        <Ionicons name="keypad-outline" size={20} color="#2B383D" style={styles.inputIcon} />
-                        <TextInput
-                          style={styles.input}
-                          placeholder="6-digit code"
-                          placeholderTextColor="#8A9BA8"
-                          keyboardType="number-pad"
-                          maxLength={6}
-                          value={parentOtpInput}
-                          onChangeText={setParentOtpInput}
-                        />
-                      </View>
-                      <TouchableOpacity
-                        style={[styles.verificationButton, { backgroundColor: '#27AE60', marginTop: 8 }]}
-                        onPress={async () => {
-                          if (!parentOtpInput || parentOtpInput.length !== 6) {
-                            Alert.alert('Invalid Code', 'Please enter the full 6-digit code.');
-                            return;
-                          }
-                          if (!verificationToken) {
-                            Alert.alert('Error', 'No verification session found. Please resend.');
-                            return;
-                          }
-                          const { verifyParentOTP } = await import('../../utils/ParentApproval');
-                          const verifyResult = await verifyParentOTP(verificationToken, parentOtpInput);
-                          if (verifyResult.ok) {
-                            setVerificationStatus('verified');
-                            Alert.alert('✅ Verified!', 'Parent code accepted! You can now continue.', [{ text: 'Continue' }]);
-                          } else {
-                            Alert.alert('❌ Wrong Code', verifyResult.message || 'Incorrect code. Try again.');
-                          }
-                        }}
-                      >
-                        <Text style={styles.verificationButtonText}>Verify Code</Text>
-                      </TouchableOpacity>
-
-                      {/* Single-phone helper: show the OTP directly */}
-                      {generatedOtpCode && (
-                        <TouchableOpacity
-                          style={[styles.verificationButton, { backgroundColor: '#6C757D', marginTop: 8 }]}
-                          onPress={() => {
-                            Alert.alert(
-                              '🔑 Parent Approval Code',
-                              `The code is:\n\n${generatedOtpCode}\n\nEnter this in the field above to complete verification.\n\n(In a real 2-device setup, only the parent would see this in their dashboard.)`,
-                              [
-                                { text: 'Enter Code', onPress: () => setParentOtpInput(generatedOtpCode) },
-                                { text: 'Close' },
-                              ]
-                            );
-                          }}
-                        >
-                          <Ionicons name="eye-outline" size={16} color="#FAFAFA" style={{ marginRight: 6 }} />
-                          <Text style={styles.verificationButtonText}>Show Code (Single Device)</Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
+                    <TouchableOpacity
+                      style={[styles.verificationButton, { backgroundColor: '#27AE60', marginTop: 8 }]}
+                      onPress={() => setShowParentAuthModal(true)}
+                    >
+                      <Ionicons name="shield-checkmark-outline" size={16} color="#fff" style={{ marginRight: 6 }} />
+                      <Text style={styles.verificationButtonText}>Open Parent Verification →</Text>
+                    </TouchableOpacity>
                   )}
                 </>
               )}
@@ -580,7 +522,7 @@ export default function SignUpScreen() {
                 </View>
               )}
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[
                   styles.primaryButton,
                   (category === 'child' && verificationStatus !== 'verified') && styles.disabledButton
@@ -606,6 +548,29 @@ export default function SignUpScreen() {
         </ScrollView>
       </View>
     </KeyboardAvoidingView>
+
+    {/* Secure parent auth modal — full screen, blocks all interaction */}
+    {verificationToken && generatedOtpCode && (
+      <ParentAuthModal
+        visible={showParentAuthModal}
+        parentEmail={parentEmail}
+        verificationToken={verificationToken}
+        otp={generatedOtpCode}
+        onSuccess={() => {
+          setShowParentAuthModal(false);
+          setVerificationStatus('verified');
+          Alert.alert(
+            '✅ Parent Verified!',
+            'Identity confirmed. You can now continue to face registration.',
+            [{ text: 'Continue →' }]
+          );
+        }}
+        onCancel={() => {
+          setShowParentAuthModal(false);
+          // Keep status as pending so they can re-open the modal
+        }}
+      />
+    )}
   );
 }
 
@@ -794,7 +759,7 @@ const styles = StyleSheet.create({
     color: '#2B383D',
     fontWeight: '500',
   },
-  
+
   // Age Display
   ageDisplay: {
     backgroundColor: '#E8F5E8',
