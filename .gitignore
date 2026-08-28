@@ -38,9 +38,12 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
-# Microsoft Office documents
-*.docx
+# Microsoft Office documents - NOW TRACKED for FYP (thesis docs)
+# *.docx - removed from ignore for FYP recovery, keep backups in Drive too
+# ~$*.docx
+# Temporary office lock files still ignored
 ~$*.docx
+.tmp.docx
 
 app-example
 
@@ -68,10 +71,14 @@ venv*/
 _extract*/
 *_extract*/
 
-# Documentation files
-CODE_ANALYSIS_REPORT*.md
-SCREEN_TRACKING_USAGE.md
-docs/
+# Documentation files - NOW TRACKED for FYP recovery (removed from ignore)
+# CODE_ANALYSIS_REPORT*.md
+# SCREEN_TRACKING_USAGE.md
+# docs/  <-- now tracked, contains FYP docs
+
+# Keep only temp docs ignored
+# (We now track docs/ folder for recovery)
+.tmp_docs/
 
 # Android build ignores
 android/.gradle/
