@@ -124,7 +124,9 @@
 
 - User's new Windows laptop: Antigravity IDE installed, project cloned from GitHub ✔
 - Created `docs/00_NEW_LAPTOP_ANTIGRAVITY_SETUP.md` — full Windows setup (Node 20 LTS, JDK 17, SDK 35, Build-Tools 35.0.0, NDK 26.1.10909125, env vars, Antigravity agent workflow, device permissions, troubleshooting)
-- User has original optimization MDs (zip `vision-guard-fixes`: android/, app/, components/, constants/, contexts/, docs/, services/, utils/ + FILE_INDEX.md 2,913 B, QUICK_START.md 5,668 B, README_FIRST.md 4,295 B) from a previous session — uploads to Arena are failing (zip blocked / uploads folder not arriving), so originals still need to be pasted as TEXT to be synced over the reconstructed versions
+- **ORIGINAL ROOT MDs RECOVERED (2026-10-02)**: user pasted real text of `QUICK_START.md` (5,668 B), `README_FIRST.md` (4,295 B), `FILE_INDEX.md` (2,913 B) — byte sizes match the lost zip listing exactly. Overwrote my reconstructions with the originals. These are now in the repo (tracked, can't be lost).
+- **KEY INSIGHT — the fix pack is CODE, not just docs.** `FILE_INDEX.md` maps 19 drop-in files. Critical: it references `com/wajahat001/Blinkfit/ScreenTimeService.kt` + new `BootReceiver.kt` (native START_STICKY + AlarmManager + boot restart) and a new `AndroidManifest.xml`. ⚠️ NOTE: our current repo uses package `com.irtiza001.visionguard` in app.json but `com.wajahat001.blinkfit` in android — must reconcile before applying the .kt files.
+- **STILL MISSING (need user to paste text)**: `docs/01_BUG_FIXES_EXPLAINED.md`, `02_AI_IMPLEMENTATION_PLAN.md`, `03_DATASETS_GUIDE.md`, `04_UI_DESIGN_SYSTEM.md`, `05_FYP_PRESENTATION_TIPS.md` (my reconstructions still in place) + the actual CODE files in the zip (app/, components/, contexts/, services/, utils/, constants/, android/).
 - Workflow rule going forward: one fix per Antigravity prompt, test on physical device, commit+push after each verified change
 
 ## Docs Recovery (NEW - 2026-08-28)

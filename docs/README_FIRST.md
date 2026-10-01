@@ -1,64 +1,97 @@
-# VisionGuard FYP - READ THIS FIRST
-**Created:** Previous session (reconstructed 2026-08-28 after laptop theft)
-**Purpose:** Start here before anything else
+# 🎯 Vision Guard — Fix Pack v1
 
-> ⚠️ RECOVERY NOTE: This file was part of your previous chat session and was lost due to .gitignore + stolen laptop. This is a reconstructed version from repo audit. If you have the original content, paste it and I'll update.
+**Generated:** May 2026
+**For:** Vision Guard FYP by Irtiza (github.com/irtizax20/VisionGuard-FYP)
 
-## What is VisionGuard?
+---
 
-VisionGuard (previously BlinkFit) is your FYP - an eye health companion mobile app built with:
-- **Expo SDK 53 + React Native 0.79 + Firebase**
-- **ML Kit Face Detection** for blink tracking
-- **Native Android modules** (Kotlin) for screen time, overlay, TTS
+## 📦 What's In This Zip?
 
-**Package:** `com.wajahat001.blinkfit` (native) vs `com.irtiza001.visionguard` (app.json) - needs unification
+This pack contains **drop-in replacement files** that fix the major bugs you reported, plus a premium UI overhaul with gradient design, plus a complete plan for adding AI models (fatigue, redness, better blink detection).
 
-## Repository State (as of 2026-08-28)
+### Issues Fixed
+1. ✅ **Blink test camera showing still image** → now uses live camera with proper preview
+2. ✅ **Distance not detecting properly** → improved IPD-based distance with smoothing
+3. ✅ **2-hour screen lock not triggering** → AlarmManager + WorkManager fallback
+4. ✅ **Notifications late/disturbing** → smart cooldown + priority channels
+5. ✅ **Face not detecting reliably** → optimized ML Kit settings + retry logic
+6. ✅ **Child module not working** → fixed parent-child Firestore listener flow
+7. ✅ **Session mixing on logout** → centralized SessionManager
+8. ✅ **Background service killed** → battery optimization request flow
 
-- **Single commit** `c71c0b6` on master - last fix was `bg_floating_bubble.xml` missing drawable
-- **213 files**, 52k insertions
-- **No .env**, no `google-services.json`, no `node_modules` - fresh laptop needs recreation
-- **Critical bugs:** `app/screen-time.tsx` stubbed, `public/parent-approve.html` wrong Firebase project ID
+### UI Overhaul
+- 🎨 Premium purple/blue gradient design (Calm-app style)
+- ✨ Smooth animations and haptic feedback
+- 🌙 Auto dark mode (easy on the eyes — on-brand!)
+- 📱 New reusable components: GradientCard, AnimatedButton, EyeIcon
 
-## Where to Start?
+### Plus
+- 📋 Full AI implementation roadmap (MediaPipe + TFLite + OpenCV)
+- 📚 Dataset download links and how to use them
+- 🐛 Bug fix explanations so you can speak to them in your FYP panel
 
-1. Read `FYP_RECOVERY_AUDIT.md` (40KB full audit) - in repo root
-2. Read `RECOVERY_TRACKER.md` - live checklist
-3. Read `PENDING_IMPROVEMENTS.md` - reconstructed task list
-4. Then read this docs folder in order:
-   - `QUICK_START.md` - 5-min setup
-   - `FILE_INDEX.md` - all files explained
-   - `01_BUG_FIXES_EXPLAINED.md` - all bugs + fixes
-   - `02_AI_IMPLEMENTATION_PLAN.md` - eye AI plan
-   - `03_DATASETS_GUIDE.md` - datasets for eye disease
-   - `04_UI_DESIGN_SYSTEM.md` - colors, themes, components
-   - `05_FYP_PRESENTATION_TIPS.md` - viva tips
+---
 
-## First 3 Commands on New Laptop
+## 🚀 How to Apply These Fixes (Easy Mode)
 
-```bash
-# 1. Node 20 LTS + JDK 17 + Android Studio Platform 35 + NDK 26.1.10909125
-node -v # should be v20.x
-java -version # should be 17
+### Option A: Drop-in Replace (Recommended)
 
-# 2. Install deps
-npm install --legacy-peer-deps
+1. **Backup your project first** (just copy your whole folder somewhere safe)
+2. Open your `VisionGuard-FYP` folder
+3. For each folder in this zip (`app/`, `components/`, `contexts/`, etc.), **copy the files into the matching folder** in your project, **replacing** the originals
+4. Open terminal in your project folder and run:
+   ```bash
+   npm install
+   npx expo prebuild --clean
+   npx expo run:android
+   ```
 
-# 3. Create .env (from template in FYP_RECOVERY_AUDIT.md)
-# FIREBASE_API_KEY=AIza...
+### Option B: Use Antigravity to Review Each File
+
+1. Open both your project and this fix pack in Antigravity
+2. For each file in `FILE_INDEX.md`, ask Antigravity:
+   > "Compare my version of `[filename]` with the new version and merge the improvements"
+3. This way you keep custom code you've written, just adopting the fixes
+
+---
+
+## 📁 File Structure in This Pack
+
+```
+vision-guard-fixes/
+├── README_FIRST.md                      ← You are here
+├── FILE_INDEX.md                        ← Where each file goes
+├── docs/
+│   ├── 01_BUG_FIXES_EXPLAINED.md       ← What each bug was + how it's fixed
+│   ├── 02_AI_IMPLEMENTATION_PLAN.md    ← How to add MediaPipe/TFLite/OpenCV
+│   ├── 03_DATASETS_GUIDE.md            ← Where to get datasets and how to use them
+│   ├── 04_UI_DESIGN_SYSTEM.md          ← Color palette, components, spacing
+│   └── 05_FYP_PRESENTATION_TIPS.md     ← What to say to your panel
+├── app/                                 ← Replace files in your /app folder
+├── components/                          ← Replace files in your /components folder
+├── contexts/                            ← Replace files in your /contexts folder
+├── services/                            ← Replace files in your /services folder
+├── utils/                               ← Replace files in your /utils folder
+├── constants/                           ← Replace files in your /constants folder
+└── android/                             ← Replace matching files in /android
 ```
 
-## Important - Docs Now Tracked
+---
 
-Previously `.gitignore` had:
-```
-docs/
-CODE_ANALYSIS_REPORT*.md
-*.docx
-```
-This caused your task MDs to be lost. **Fixed now** - `docs/` is tracked, `.docx` is tracked. Future docs will sync to GitHub.
+## ⚠️ Important Notes
 
-## Next Action
+1. **Keep your `firebase/firebaseConfig.ts` file** — don't replace it (it has your secret keys)
+2. **Keep your `google-services.json` file** — don't replace it
+3. **Backup your `app.json` / `app.config.js`** before replacing — yours might have custom values
+4. After replacing files, always run `npx expo prebuild --clean` once before building
 
-Tell agent: "Proceed with Phase 1" to make app runnable, or paste original content of these 7 files if you have them locally.
+---
 
+## 🆘 Need Help?
+
+If something breaks:
+1. Check `docs/01_BUG_FIXES_EXPLAINED.md` for context
+2. The original files in your git history are recoverable: `git checkout -- [filename]`
+3. Each new file has comments explaining what changed and why
+
+Good luck with your FYP! 🎓
