@@ -120,6 +120,13 @@
 | 12 | services/BackgroundTasks.ts:6 | TODO migrate to expo-background-task | Medium | Open |
 | 13 | .gitignore | Was ignoring docs/ and *.md task files, caused loss of previous session MDs | Critical | ✅ Fixed - docs/ now tracked |
 
+## New Laptop / Antigravity Workflow (2026-10-02)
+
+- User's new Windows laptop: Antigravity IDE installed, project cloned from GitHub ✔
+- Created `docs/00_NEW_LAPTOP_ANTIGRAVITY_SETUP.md` — full Windows setup (Node 20 LTS, JDK 17, SDK 35, Build-Tools 35.0.0, NDK 26.1.10909125, env vars, Antigravity agent workflow, device permissions, troubleshooting)
+- User has original optimization MDs (zip `vision-guard-fixes`: android/, app/, components/, constants/, contexts/, docs/, services/, utils/ + FILE_INDEX.md 2,913 B, QUICK_START.md 5,668 B, README_FIRST.md 4,295 B) from a previous session — uploads to Arena are failing (zip blocked / uploads folder not arriving), so originals still need to be pasted as TEXT to be synced over the reconstructed versions
+- Workflow rule going forward: one fix per Antigravity prompt, test on physical device, commit+push after each verified change
+
 ## Docs Recovery (NEW - 2026-08-28)
 
 User attached 7 files that were lost: QUICK_START.md, README_FIRST.md, FILE_INDEX.md, 01_BUG_FIXES_EXPLAINED.md, 02_AI_IMPLEMENTATION_PLAN.md, 03_DATASETS_GUIDE.md, 04_UI_DESIGN_SYSTEM.md, 05_FYP_PRESENTATION_TIPS.md
