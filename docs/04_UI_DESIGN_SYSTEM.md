@@ -1,133 +1,223 @@
-# 04 - UI DESIGN SYSTEM (VisionGuard)
-**Reconstructed 2026-08-28**
+# 🎨 Vision Guard — UI Design System
 
-## Design Philosophy
+The premium feel comes from **consistency**. This doc documents every design decision
+so your screens all look like part of the same app.
 
-- **Eye Health = Calm, Dark, Professional** - not bright medical white
-- **Primary Color:** `#2B383D` (dark teal/gray) - used in splash, buttons, headers
-- **Background:** `#FAFAFA` light, `#121212` dark (from Colors.ts)
-- **Accent:** `#4A90E2` blue (20-20-20 tip), `#50C878` green (blink), `#FF8C42` orange (brightness)
+---
 
-## Colors (from constants/Colors.ts)
+## 🎨 Color Palette
 
-```ts
-// Light
-tintColorLight: '#0a7ea4' (approx, check file)
-background: '#FAFAFA'
-card: '#FFFFFF'
-text: '#2B383D'
-textSecondary: '#8A9BA8'
-primary: '#2B383D'
-secondary: '#4A6572'
-border: '#DADCE0'
-error: '#D32F2F'
+### Brand colors (gradients)
+| Name | Start | End | When to use |
+|---|---|---|---|
+| Primary | `#6366F1` (indigo) | `#8B5CF6` (violet) | Main brand, primary buttons, hero |
+| Accent | `#06B6D4` (cyan) | `#3B82F6` (blue) | Eye-themed UI, scan effects |
+| Hero | `#6366F1` → `#8B5CF6` → `#EC4899` | (3-stop) | Landing screen, lock screen |
 
-// Dark
-background: '#121212'
-card: '#1E1E1E'
-text: '#FAFAFA'
+### Health states
+| State | Color | Meaning |
+|---|---|---|
+| Good | `#10B981` (green) | All healthy, low fatigue, good distance |
+| Warning | `#F59E0B` (amber) | Mild concern — take a break soon |
+| Bad | `#EF4444` (red) | Action needed — too close, high fatigue |
+
+### Surfaces (dark mode — default)
+- `bg`: `#0B0F1A` — page background
+- `surface`: `#151B2C` — cards, sheets
+- `surfaceElevated`: `#1E2540` — raised cards, modals
+- `border`: `#252B45` — dividers
+
+### Surfaces (light mode)
+- `bg`: `#FAFAFE`
+- `surface`: `#FFFFFF`
+- `border`: `#E5E7EB`
+
+---
+
+## 📏 Spacing Scale
+
+Use these tokens, never raw pixel values:
+
+| Token | Pixels | Use for |
+|---|---|---|
+| `xs` | 4 | Icon-text gap |
+| `sm` | 8 | Tight inline spacing |
+| `md` | 12 | Default padding |
+| `lg` | 16 | Card padding |
+| `xl` | 24 | Section gap |
+| `xxl` | 32 | Big section break |
+| `xxxl` | 48 | Page top/bottom padding |
+
+---
+
+## 🔤 Typography
+
+| Style | Size | Weight | Use |
+|---|---|---|---|
+| `displayLg` | 40 | 800 | Landing hero ("Vision Guard") |
+| `displayMd` | 32 | 700 | Page title |
+| `h1` | 28 | 700 | Section heading |
+| `h2` | 22 | 700 | Card title |
+| `h3` | 18 | 600 | Sub-heading |
+| `body` | 16 | 400 | Default text |
+| `bodySm` | 14 | 400 | Captions, sub-text |
+| `bodyBold` | 16 | 600 | Button labels |
+| `caption` | 12 | 500 | Tiny labels |
+| `captionUpper` | 11 | 700 (uppercase) | Section labels |
+| `statLg` | 48 | 800 | Big numbers ("187 blinks") |
+| `statMd` | 32 | 700 | Medium numbers |
+
+---
+
+## 🔘 Border Radius
+
+| Token | Pixels | Use |
+|---|---|---|
+| `sm` | 8 | Chips, tags |
+| `md` | 12 | Small buttons |
+| `lg` | 16 | Cards, large buttons |
+| `xl` | 24 | Hero cards |
+| `pill` | 999 | Status badges, FABs |
+
+---
+
+## 🌟 Shadows / Glows
+
+| Token | Use |
+|---|---|
+| `sm` | Subtle elevation, list items |
+| `md` | Cards, default |
+| `lg` | Modals, important cards |
+| `glowPurple` | Hero CTAs |
+| `glowCyan` | Eye/vision UI |
+
+---
+
+## ✨ Animation Tokens
+
+| Token | Duration | Use |
+|---|---|---|
+| `fast` | 150ms | Button press |
+| `normal` | 250ms | Tab switch, modal open |
+| `slow` | 400ms | Page transitions |
+| `spring` | (damping 14, stiffness 120) | Natural bounce |
+
+---
+
+## 🧩 Component Library
+
+### `GradientCard`
+Premium card with gradient background.
+```tsx
+<GradientCard gradient="primary" glow="purple" onPress={...}>
+  <Text>Content</Text>
+</GradientCard>
 ```
 
-## Typography (from hooks/useTheme.ts)
+Props:
+- `gradient`: 'primary' | 'accent' | 'success' | 'warning' | 'danger' | 'hero' | 'card' | 'darkBg'
+- `glow`: 'purple' | 'cyan' | 'none'
+- `onPress` (optional — makes it tappable)
+- `padding`, `borderRadius` (defaults match design system)
 
-- **Fonts:** SpaceMono-Regular (assets/fonts/SpaceMono-Regular.ttf) + system
-- **Sizes:** small 12, medium 14-16, large 18-20, xlarge 24, xxlarge 28
-- **Weights:** regular, 600 semibold, bold 700
-
-## Components
-
-### 1. Splash Screen (`app/splash/splashScreen.tsx`)
-
-- Background `#2B383D`, centered logo `assets/logo.png` 120x120, app name "Vision Guard" 40 bold #FAFAFA, tagline "Your Eye Health Companion" 18 #8A9BA8
-- Loading bar: container 250x8 #4A555A, fill #FAFAFA animated 0%->100% 2s
-
-### 2. Auth Screens (`app/(auth)/`)
-
-- **Login.tsx:** Header with logo circular + shadow, form with email (Gmail only validation), password with show/hide eye icon, error message red, loading ActivityIndicator, footer "Don't have account? Sign up"
-- **Signup.tsx:** Multi-step: DOB picker (DateOfBirthPicker component), category picker (child/adult/old), parent email if child, validation
-- **Face Capture/Verification:** Camera full screen, overlay with face guide, torch toggle, capture button, error message, permission handling
-
-### 3. Main (Home) (`app/(tabs)/Main.tsx`)
-
-- **Header:** LogoutButton via `nav.setOptions({headerRight: () => <LogoutButton />})`
-- **Carousel:** CARD_WIDTH = width*0.8, SIDE_PADDING = (width-CARD_WIDTH)/2, infinite scroll via extended data [last, ...real, first], auto-slide interval 3s, pulse animation
-- **Carousel Data:** 6 cards: 20-20-20 Rule (#4A90E2 eye-outline), Blink More (#50C878 water), Brightness (#FF8C42 sunny), Take Breaks (#9B59B6 pause-circle), Eye Exercises (#E74C3C fitness), Proper Lighting (#F39C12 bulb)
-- **Tips:** Eye health tips list with icon + color from theme
-
-### 4. Screen Time (`app/screen-time.tsx` + `components/ScreenTime/`)
-
-- **Permission Card:** Shows Usage Access permission status, button to open settings via `NativeScreenTrackingService.openUsageAccessSettings()`
-- **Daily Card:** Total screen time formatted `1h 20m 30s`, apps count, most used app
-- **App List:** max 10, show percentage, app name via `ScreenTimeService.getAppName(pkg)` mapping Instagram, YouTube etc
-- **Weekly Summary:** Chart (needs implementation) + weekly averages
-
-### 5. Blink Test (`app/blink-test.tsx`)
-
-- **States:** idle, detecting (pulse animation 1->1.15 loop), countdown, result
-- **UI:** Camera permission card, detecting indicator with blink flash, current blink count + distance measurements, result card with blinkCount, avg distance, duration, eye images if enabled
-- **Toggle:** eyeCaptureEnabled switch, tooCloseWarning with TTS "You are too close"
-- **Animations:** pulseAnim (loop), blinkFlashAnim (sequence)
-
-### 6. Eye Images Gallery (`app/eye-images-gallery.tsx`)
-
-- **Header:** Back button + title + clear button (trash icon #D32F2F) if images exist
-- **Stats:** Total captures card with icon images-outline #2196F3
-- **Image Card:** Timestamp with time-outline icon, save button download-outline #4CAF50, left/right eye images side by side, eye label
-- **Empty:** eye-off-outline 80 opacity 0.3, "No eye images", button "Start Blink Test"
-
-### 7. Parent Dashboard (`app/(tabs)/ParentDashboard.tsx`)
-
-- **Card:** Child info row with icon, name 20 bold, email 14, divider, controls: lock/unlock switch with lock-closed/open icons, OTP card with border 1.5, title 15 bold, OTP 24 bold monospace, copy button
-- **Empty:** No children message
-
-### 8. Other Screens
-
-- **Analytics:** Header with back button, sectionTitle large 600, weekCard with left border color, dayRow with borderBottom
-- **Lock Screen:** Centered lock-closed 120 error color, title 32 bold "Device Locked", subtitle 18 center
-- **Report, Setting, Daily Summary, Eye Exercise, Manual Capture, Profile Edit** - similar card-based layout with theme colors
-
-## Theme System
-
-- **ThemeContext:** `hooks/ThemeContext.tsx` provides colors, fonts, spacing, borderRadius, isDark
-- **useTheme():** Returns theme object, used in all screens via `const {colors, fonts, spacing, borderRadius} = useTheme()`
-- **ThemedText, ThemedView:** Wrapper components that auto use theme
-
-## Spacing & Border Radius (from useTheme)
-
-```ts
-spacing: xs 4, sm 8, md 16, lg 24, xl 32
-borderRadius: sm 8, md 12, lg 16, xl 24
-fonts: small 12, medium 16, large 18, xlarge 20, xxlarge 28
+### `AnimatedButton`
+Spring-animated button with haptics.
+```tsx
+<AnimatedButton
+  title="Start Test"
+  variant="primary"
+  size="lg"
+  icon={<Ionicons name="play" size={20} color="#fff" />}
+  onPress={...}
+/>
 ```
 
-## Icons
+Variants: `primary | accent | success | danger | ghost`
+Sizes: `sm | md | lg`
 
-- **Ionicons** from `@expo/vector-icons` - eye-outline, water-outline, sunny-outline, pause-circle-outline, fitness-outline, bulb-outline, time-outline, download-outline, trash-outline, arrow-back, lock-closed, etc
-- **Expo Symbols** for iOS
+### `EyeIcon`
+Animated brand eye logo (no SVG dependency).
+```tsx
+<EyeIcon size={80} glowing blinking />
+```
 
-## Shadows & Elevation
+### `SmartNotification`
+In-app toast notification.
+```tsx
+const notifRef = useRef<SmartNotificationHandle>(null);
 
-- Card: `elevation: 3, shadowColor: '#000', shadowOffset: {width:0,height:2}, shadowOpacity: 0.1, shadowRadius: 4, borderWidth: 1, borderColor: colors.border`
-- Logo: circular with shadow
+<SmartNotification ref={notifRef} />
 
-## What Was Planned (INFERRED)
+// later:
+notifRef.current?.show({
+  title: 'Look 20 feet away',
+  message: 'Take a 20 second break',
+  type: 'info',
+});
+```
 
-- **Glassmorphism** - README_AUTH.md mentions glassmorphism design, but not implemented - could add blur via `expo-blur`
-- **Dark mode toggle** in Settings - currently automatic via system
-- **Haptic feedback** - `expo-haptics` installed but not used everywhere, add on button press
-- **Animations** - Reanimated already used for carousel, blink test - add more for screen transitions
+---
 
-## For FYP Presentation
+## 📱 Screen Templates
 
-- Show color palette slide: #2B383D primary, #FAFAFA background, accent colors for tips
-- Show typography: SpaceMono + system, consistent spacing
-- Show component consistency: all cards have same borderRadius lg, elevation 3, left border color for categorization
-- Mention accessibility: `useAccessibility` hook exists (empty), could add font scaling
+### Standard screen structure
+```tsx
+<View style={{ flex: 1 }}>
+  <LinearGradient colors={Gradients.darkBg} style={StyleSheet.absoluteFill} />
+  <SafeAreaView style={{ flex: 1 }}>
+    <ScreenHeader title="..." />
+    <ScrollView contentContainerStyle={{ padding: Spacing.lg }}>
+      {/* content */}
+    </ScrollView>
+  </SafeAreaView>
+</View>
+```
 
-## Files to Check
+### Hero card structure
+```tsx
+<GradientCard gradient="hero" glow="purple">
+  <Text style={Typography.captionUpper}>SECTION LABEL</Text>
+  <Text style={Typography.statLg}>{bigNumber}</Text>
+  <Text style={{ color: 'white', opacity: 0.85 }}>Description text</Text>
+</GradientCard>
+```
 
-- `constants/Colors.ts` - all colors
-- `hooks/useTheme.ts` + `ThemeContext.tsx` - theme system
-- `components/ui/` - DateOfBirthPicker, Footer, IconSymbol, LogoutButton, TabBarBackground
-- `app/(tabs)/Main.tsx` - carousel + tips design
+### Stat row (3-up)
+```tsx
+<View style={{ flexDirection: 'row', gap: Spacing.sm }}>
+  <GradientCard gradient="primary" style={{ flex: 1 }}>...</GradientCard>
+  <GradientCard gradient="accent" style={{ flex: 1 }}>...</GradientCard>
+  <GradientCard gradient="warning" style={{ flex: 1 }}>...</GradientCard>
+</View>
+```
 
+### Feature tile grid (2x2)
+See `app/index.tsx` for `FeatureTile` example.
+
+---
+
+## ✅ Design Checklist (before showing your panel)
+
+- [ ] Every screen uses `LinearGradient` background (no plain backgrounds)
+- [ ] All buttons use `AnimatedButton` (no raw `<Button>` or `<TouchableOpacity>` with text)
+- [ ] All cards use `GradientCard` (no raw `<View>` with backgroundColor)
+- [ ] Brand `EyeIcon` appears on home + splash + lock screens
+- [ ] Spacing uses tokens (`Spacing.lg`), never raw numbers
+- [ ] Typography uses tokens (`Typography.h1`), never raw `fontSize`
+- [ ] Status colors used correctly: green = good, amber = warning, red = bad
+- [ ] At least one screen has a "wow" animation (scan line, breathing eye, etc.)
+- [ ] Haptic feedback on all CTAs
+- [ ] Dark mode looks just as good as light mode
+
+---
+
+## 🎯 Premium Design Principles (steal these for any future app)
+
+1. **Gradient > flat color** for important surfaces. Flat is for backgrounds only.
+2. **Glow shadows** on key CTAs make the app feel "alive."
+3. **Animations should reinforce meaning** — eye breathes when calm, pulses when alert, scans when working.
+4. **Never use the default system font** — but for FYP, system bold IS premium when used at the right sizes.
+5. **One signature element** per app — Vision Guard's is the animated eye icon.
+6. **Numbers should be HUGE** — stat values at 32–48pt look more impactful than 24pt.
+7. **Tight letter-spacing** on big text (`letterSpacing: -1`) feels modern.
+8. **Spring animations** > linear timing. Always.
